@@ -14,6 +14,47 @@ let focusTasks = [];
 let clientLinks = {};
 
 /**
+ * Функция валидации и отладки данных
+ */
+function validateAndDebugData() {
+    console.log('=== ВАЛІДАЦІЯ ДАНИХ ===');
+    console.log('Записи продаж:', masterData.length);
+    console.log('Співробітники:', allEmployees.length);
+    console.log('Відділи:', departments.length);
+    console.log('Довідник менеджерів клієнтів:', Object.keys(clientManagerDirectory).length);
+    console.log('Категорії номенклатури:', Object.keys(nomenclatureCategories).length);
+    console.log('Фокусні задачі:', focusTasks.length);
+    
+    // Анализ структуры данных продаж
+    if (masterData.length > 0) {
+        console.log('Приклад записи продаж:', masterData[0]);
+        console.log('Поля в записах продаж:', Object.keys(masterData[0]));
+    }
+    
+    // Анализ справочника менеджеров
+    if (Object.keys(clientManagerDirectory).length > 0) {
+        const firstEntry = Object.entries(clientManagerDirectory)[0];
+        console.log('Приклад запису довідника:', firstEntry);
+    }
+    
+    // Анализ сотрудников
+    if (allEmployees.length > 0) {
+        console.log('Приклад співробітника:', allEmployees[0]);
+        console.log('Співробітники з відділами:', allEmployees.filter(emp => emp.department).length);
+    }
+    
+    // Анализ фокусных задач
+    if (focusTasks.length > 0) {
+        console.log('Приклад фокусної задачі:', focusTasks[0]);
+        console.log('Завершені фокусні задачі:', focusTasks.filter(task => 
+            task.status === 'completed' || task.status === 'завершено'
+        ).length);
+    }
+    
+    console.log('=== КІНЕЦЬ ВАЛІДАЦІЇ ===');
+}
+
+/**
  * Главная функция инициализации дашборда по отделам
  * @param {HTMLElement} container - DOM-элемент для вставки дашборда
  */
@@ -51,46 +92,102 @@ async function loadDataForReport() {
     const companyId = window.state?.currentCompanyId;
     if (!companyId) throw new Error("ID компанії не знайдено.");
 
-    // Используем Promise.all для параллельной загрузки
-    const [
-        dataRes, 
-        dataJulyRes, 
-        refRes, 
-        employeesSnap, 
-        departmentsSnap, 
-        nomenclatureRes, 
-        focusTasksSnap
-    ] = await Promise.all([
-        fetch('модуль помічник продажу/data.json'),
-        fetch('https://fastapi.lookfort.com/nomenclature.analysis'),
-        fetch('https://fastapi.lookfort.com/nomenclature.analysis?mode=company_url'),
-        firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/employees`)),
-        firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/departments`)),
-        fetch('https://fastapi.lookfort.com/nomenclature.analysis?mode=nomenclature_category'),
-        firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/focusTasks`))
-    ]);
+    console.log('Завантаження даних для звіту...');
 
-    // Обработка данных
-    const data = await dataRes.json();
-    const dataJuly = await dataJulyRes.json();
-    masterData = data.concat(dataJuly);
-    
-    const refData = await refRes.json();
-    clientLinks = Object.fromEntries(refData.map(item => [item['Клієнт.Код'], item['посилання']]));
+    try {
+        // Загружаем данные продаж из двух источников (как в alerts.js)
+        const [dataJulyRes, refRes] = await Promise.all([
+            fetch('https://fastapi.lookfort.com/nomenclature.analysis'),
+            fetch('https://fastapi.lookfort.com/nomenclature.analysis?mode=company_url')
+        ]);
 
-    allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    departments = departmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    const nomenclatureData = await nomenclatureRes.json();
-    nomenclatureCategories = {};
-    nomenclatureData.forEach(item => {
-        if (item['Номенклатура'] && item['Категория 2']) {
-            nomenclatureCategories[item['Номенклатура']] = item['Категория 2'];
+        // Проверяем статус ответов
+        if (!dataJulyRes.ok) {
+            throw new Error(`Помилка завантаження даних продаж: ${dataJulyRes.status}`);
         }
-    });
+        if (!refRes.ok) {
+            throw new Error(`Помилка завантаження довідника клієнтів: ${refRes.status}`);
+        }
 
-    focusTasks = focusTasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    clientManagerDirectory = await loadClientManagerDirectory();
+        const dataJuly = await dataJulyRes.json();
+        const refData = await refRes.json();
+
+        // Статические данные до июля 2025
+        let staticData = [];
+        try {
+            const staticDataRes = await fetch('модуль помічник продажу/data.json');
+            if (staticDataRes.ok) {
+                staticData = await staticDataRes.json();
+                console.log('Завантажено статичних записів продаж:', staticData.length);
+            }
+        } catch (error) {
+            console.warn('Не вдалося завантажити статичні дані:', error);
+            staticData = [];
+        }
+        
+        // Объединяем все данные продаж
+        masterData = staticData.concat(dataJuly);
+        console.log('Завантажено записів продаж:', masterData.length);
+
+        // Создаем справочник ссылок на клиентов
+        clientLinks = {};
+        if (Array.isArray(refData)) {
+            refData.forEach(item => {
+                if (item['Клиент.Код'] && item['посилання']) {
+                    clientLinks[item['Клиент.Код']] = item['посилання'];
+                }
+            });
+        }
+        console.log('Завантажено посилань на клієнтів:', Object.keys(clientLinks).length);
+
+        // Параллельная загрузка остальных данных
+        const [
+            employeesSnap, 
+            departmentsSnap, 
+            nomenclatureRes, 
+            focusTasksSnap
+        ] = await Promise.all([
+            firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/employees`)),
+            firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/departments`)),
+            fetch('https://fastapi.lookfort.com/nomenclature.analysis?mode=nomenclature_category'),
+            firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/focusTasks`))
+        ]);
+
+        // Обработка данных сотрудников и отделов
+        allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        departments = departmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('Завантажено співробітників:', allEmployees.length);
+        console.log('Завантажено відділів:', departments.length);
+
+        // Обработка номенклатуры
+        if (nomenclatureRes.ok) {
+            const nomenclatureData = await nomenclatureRes.json();
+            nomenclatureCategories = {};
+            if (Array.isArray(nomenclatureData)) {
+                nomenclatureData.forEach(item => {
+                    if (item['Номенклатура'] && item['Категория 2']) {
+                        nomenclatureCategories[item['Номенклатура']] = item['Категория 2'];
+                    }
+                });
+            }
+            console.log('Завантажено категорій номенклатури:', Object.keys(nomenclatureCategories).length);
+        }
+
+        // Обработка фокусных задач
+        focusTasks = focusTasksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('Завантажено фокусних задач:', focusTasks.length);
+
+        // Загружаем справочник менеджеров клиентов
+        clientManagerDirectory = await loadClientManagerDirectory();
+        console.log('Завантажено довідник менеджерів клієнтів:', Object.keys(clientManagerDirectory).length);
+
+        // Валидация данных
+        validateAndDebugData();
+
+    } catch (error) {
+        console.error('Помилка завантаження даних:', error);
+        throw error;
+    }
 }
 
 /**
@@ -146,12 +243,12 @@ async function renderReport(contentContainer, selectedDeptId = '') {
     const clientToSphereMap = new Map();
 
     masterData.forEach(sale => {
-        const sphere = sale['Сфера деятельности'] || sale['Сфера'] || 'Інше';
+        const sphere = sale['Сфера деятельности'] || sale['Сфера діяльності'] || sale['Сфера'] || 'Інше';
         const product = sale['Номенклатура'];
-        const clientCode = sale['Клієнт.Код'];
+        const clientCode = sale['Клиент.Код'] || sale['Клієнт.Код'];
         const group = nomenclatureCategories[product];
 
-        if (group) {
+        if (group && product) {
             if (!sphereToGroupsMap.has(sphere)) {
                 sphereToGroupsMap.set(sphere, new Set());
             }
@@ -165,10 +262,14 @@ async function renderReport(contentContainer, selectedDeptId = '') {
             }
         }
         
-        if (clientCode && !clientToSphereMap.has(clientCode)) {
+        if (clientCode && sphere && !clientToSphereMap.has(clientCode)) {
              clientToSphereMap.set(clientCode, sphere);
         }
     });
+
+    console.log('Картографування сфер на групи:', sphereToGroupsMap.size);
+    console.log('Картографування клієнтів на групи:', clientToGroupsMap.size);
+    console.log('Картографування клієнтів на сфери:', clientToSphereMap.size);
 
     const calculationMaps = { sphereToGroupsMap, clientToGroupsMap, clientToSphereMap };
 
@@ -185,10 +286,25 @@ async function renderReport(contentContainer, selectedDeptId = '') {
         departmentsToRender = departmentsToRender.filter(([deptId, _]) => deptId === selectedDeptId);
     }
 
+    console.log('Відділи для відображення:', departmentsToRender.length);
+    
     if (departmentsToRender.length === 0) {
         contentContainer.innerHTML = `<p class="text-gray-400 text-center">Немає даних для відображення по обраному відділу.</p>`;
         return;
     }
+
+    // Добавляем общую статистику перед отделами
+    const totalStats = departmentsToRender.reduce((acc, [_, deptData]) => {
+        deptData.managersData.forEach(mgr => {
+            acc.totalManagers++;
+            acc.totalClients += mgr.kpi.totalClients;
+            acc.totalRevenue += mgr.kpi.totalRevenue;
+            acc.totalFocusAmount += mgr.kpi.focusTaskAmount;
+        });
+        return acc;
+    }, { totalManagers: 0, totalClients: 0, totalRevenue: 0, totalFocusAmount: 0 });
+
+    console.log('Загальна статистика:', totalStats);
 
     departmentsToRender
       .sort(([,a],[,b]) => a.name.localeCompare(b.name))
@@ -209,53 +325,91 @@ function calculateManagerKpi(manager, calculationMaps) {
     
     // 1. Общее кол-во клиентов менеджера из справочника
     const managerClients = Object.entries(clientManagerDirectory)
-        .filter(([_, info]) => info.manager && manager.name && info.manager.trim() === manager.name.trim())
-        .map(([code, info]) => code);
+        .filter(([_, info]) => {
+            // Проверяем различные варианты указания менеджера
+            if (info.manager && manager.name) {
+                return info.manager.trim().toLowerCase() === manager.name.trim().toLowerCase();
+            }
+            return false;
+        })
+        .map(([code, _]) => code);
+    
     const totalClients = managerClients.length;
+    console.log(`Менеджер ${manager.name}: знайдено ${totalClients} клієнтів`);
 
-    // 2. Продажи по клиентам менеджера
-    const salesForManager = masterData.filter(sale => 
-        managerClients.includes(sale['Клієнт.Код'])
-    );
+    // 2. Продажи по клиентам менеджера (используем правильные поля)
+    const salesForManager = masterData.filter(sale => {
+        const clientCode = sale['Клиент.Код'] || sale['Клієнт.Код'];
+        return managerClients.includes(clientCode);
+    });
+
+    console.log(`Менеджер ${manager.name}: знайдено ${salesForManager.length} продаж`);
 
     // 3. Отгруженные клиенты и выручка
     const shippedClientsSet = new Set();
     let totalRevenue = 0;
+    
     salesForManager.forEach(sale => {
-        shippedClientsSet.add(sale['Клієнт.Код']);
-        const revenue = typeof sale['Выручка'] === 'string' ? parseFloat(sale['Выручка'].replace(/\s/g, '').replace(',', '.')) : (sale['Выручка'] || 0);
+        const clientCode = sale['Клиент.Код'] || sale['Клієнт.Код'];
+        if (clientCode) {
+            shippedClientsSet.add(clientCode);
+        }
+        
+        // Парсим выручку (может быть строкой с пробелами и запятыми)
+        let revenue = sale['Выручка'] || sale['Виручка'] || 0;
+        if (typeof revenue === 'string') {
+            revenue = parseFloat(revenue.replace(/\s/g, '').replace(',', '.')) || 0;
+        }
         totalRevenue += revenue;
     });
+
     const shippedClients = shippedClientsSet.size;
     const shipmentPercentage = totalClients > 0 ? (shippedClients / totalClients) * 100 : 0;
-    const avgCheck = salesForManager.length > 0 ? totalRevenue / salesForManager.length : 0;
+    const avgCheck = shippedClients > 0 ? totalRevenue / salesForManager.length : 0;
     const ltv = totalClients > 0 ? totalRevenue / totalClients : 0;
 
     // 4. Фокусные задачи
-    const managerFocusTasks = focusTasks.filter(task => task.managerId === manager.id && task.status === 'completed');
-    const focusTaskAmount = managerFocusTasks.reduce((sum, task) => sum + (parseFloat(task.sum) || 0), 0);
-    const focusClients = new Set(managerFocusTasks.map(task => task.clientId)).size;
+    const managerFocusTasks = focusTasks.filter(task => 
+        task.managerId === manager.id && 
+        (task.status === 'completed' || task.status === 'завершено')
+    );
+    
+    const focusTaskAmount = managerFocusTasks.reduce((sum, task) => {
+        const taskSum = parseFloat(task.sum || task.amount || 0);
+        return sum + (isNaN(taskSum) ? 0 : taskSum);
+    }, 0);
+    
+    const focusClientsSet = new Set();
+    managerFocusTasks.forEach(task => {
+        if (task.clientId || task.clientCode) {
+            focusClientsSet.add(task.clientId || task.clientCode);
+        }
+    });
+    
+    const focusClients = focusClientsSet.size;
     const focusBasePercentage = totalClients > 0 ? (focusClients / totalClients) * 100 : 0;
     
     // 5. Покрытие групп товаров
     let totalCoverageSum = 0;
     let clientsWithSphere = 0;
+    
     managerClients.forEach(clientCode => {
         const sphere = clientToSphereMap.get(clientCode);
-        if (sphere) {
+        if (sphere && sphereToGroupsMap.has(sphere)) {
             clientsWithSphere++;
             const sphereGroups = sphereToGroupsMap.get(sphere);
             const clientGroups = clientToGroupsMap.get(clientCode);
 
-            if (sphereGroups && sphereGroups.size > 0 && clientGroups) {
+            if (sphereGroups && sphereGroups.size > 0 && clientGroups && clientGroups.size > 0) {
                 const coverage = (clientGroups.size / sphereGroups.size) * 100;
                 totalCoverageSum += coverage;
             }
         }
     });
+    
     const productCoverage = clientsWithSphere > 0 ? totalCoverageSum / clientsWithSphere : 0;
 
-    return {
+    const result = {
         totalClients,
         shippedClients,
         shipmentPercentage,
@@ -267,6 +421,9 @@ function calculateManagerKpi(manager, calculationMaps) {
         focusBasePercentage,
         totalRevenue
     };
+
+    console.log(`KPI для ${manager.name}:`, result);
+    return result;
 }
 
 
@@ -368,18 +525,28 @@ function renderDepartmentSection(departmentData) {
  */
 function createManagerRowHTML(manager) {
     const kpi = manager.kpi;
-    const formatCurrency = (val) => `${val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`;
-    const formatPercentage = (val) => `${val.toFixed(2)}%`;
+    const formatCurrency = (val) => {
+        if (val === 0) return '0.00 грн';
+        return `${val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`;
+    };
+    const formatPercentage = (val) => {
+        if (val === 0) return '0.00%';
+        return `${val.toFixed(2)}%`;
+    };
+
+    // Определяем цвет прогресс-бара в зависимости от процента отгрузки
+    const progressColor = kpi.shipmentPercentage >= 80 ? 'bg-green-600' : 
+                         kpi.shipmentPercentage >= 50 ? 'bg-yellow-600' : 'bg-red-600';
 
     return `
         <tr class="border-b border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-100/50 dark:hover:bg-gray-800/50">
-            <td class="p-4 align-middle font-medium text-gray-900 dark:text-white">${manager.name}</td>
+            <td class="p-4 align-middle font-medium text-gray-900 dark:text-white">${manager.name || 'Без імені'}</td>
             <td class="p-4 align-middle text-center">${kpi.totalClients} / ${kpi.shippedClients}</td>
             <td class="p-4 align-middle text-center">
                 <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${kpi.shipmentPercentage}%"></div>
+                    <div class="${progressColor} h-2.5 rounded-full" style="width: ${Math.min(kpi.shipmentPercentage, 100)}%"></div>
                 </div>
-                <span class="text-xs text-gray-500">${formatPercentage(kpi.shipmentPercentage)}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">${formatPercentage(kpi.shipmentPercentage)}</span>
             </td>
             <td class="p-4 align-middle text-right">${formatCurrency(kpi.avgCheck)}</td>
             <td class="p-4 align-middle text-right">${formatCurrency(kpi.ltv)}</td>
