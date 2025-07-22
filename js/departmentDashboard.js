@@ -87,6 +87,7 @@ export async function initDepartmentDashboard(container) {
             <header class="mb-8">
                 <h1 class="text-4xl font-bold text-white">Дашборд по відділах</h1>
                 <p class="text-lg text-gray-400">Ключові показники ефективності менеджерів</p>
+                <p id="period-info" class="text-sm text-gray-500 mt-2"></p>
             </header>
             <div id="department-dashboard-filters" class="mb-6 bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 flex flex-wrap gap-4"></div>
             <main id="department-dashboard-content">
@@ -100,7 +101,11 @@ export async function initDepartmentDashboard(container) {
     try {
         await loadDataForReport();
         renderDepartmentFilter(container.querySelector('#department-dashboard-filters'));
-        await renderReport(container.querySelector('#department-dashboard-content'));
+        
+        // Используем текущий месяц по умолчанию
+        const now = new Date();
+        const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        await renderReport(container.querySelector('#department-dashboard-content'), '', currentPeriod);
     } catch (error) {
         console.error("Помилка при побудові дашборда по відділах:", error);
         container.querySelector('#department-dashboard-content').innerHTML = 
@@ -235,35 +240,76 @@ async function loadDataForReport() {
 }
 
 /**
- * Рендеринг фильтра по отделам
+ * Рендеринг фильтра по отделам и периоду
  * @param {HTMLElement} filterContainer - DOM-элемент для вставки фильтра
  */
 function renderDepartmentFilter(filterContainer) {
+    // Генерируем список месяцев для выбора (последние 12 месяцев)
+    const months = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthName = date.toLocaleDateString('uk-UA', { month: 'long', year: 'numeric' });
+        months.push({ value: monthYear, name: monthName });
+    }
+
+    // Текущий месяц по умолчанию
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
     let filterHtml = `
         <div>
-            <label for="dept-dash-filter" class="block text-sm font-medium mb-1">Фільтр по відділу:</label>
-            <select id="dept-dash-filter" class="dark-input">
+            <label for="dept-dash-filter" class="block text-sm font-medium mb-1 text-gray-200">Фільтр по відділу:</label>
+            <select id="dept-dash-filter" class="dark-input bg-gray-700 text-gray-200 border-gray-600">
                 <option value="">Всі відділи</option>
                 ${departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
+            </select>
+        </div>
+        <div>
+            <label for="period-filter" class="block text-sm font-medium mb-1 text-gray-200">Період аналізу:</label>
+            <select id="period-filter" class="dark-input bg-gray-700 text-gray-200 border-gray-600">
+                ${months.map(m => `<option value="${m.value}" ${m.value === currentMonth ? 'selected' : ''}>${m.name}</option>`).join('')}
             </select>
         </div>
     `;
     filterContainer.innerHTML = filterHtml;
 
-    const filterSelect = filterContainer.querySelector('#dept-dash-filter');
-    filterSelect.addEventListener('change', (e) => {
-        const selectedDeptId = e.target.value;
+    const deptFilterSelect = filterContainer.querySelector('#dept-dash-filter');
+    const periodFilterSelect = filterContainer.querySelector('#period-filter');
+    
+    const updateReport = () => {
+        const selectedDeptId = deptFilterSelect.value;
+        const selectedPeriod = periodFilterSelect.value;
         const contentContainer = document.getElementById('department-dashboard-content');
-        renderReport(contentContainer, selectedDeptId);
-    });
+        renderReport(contentContainer, selectedDeptId, selectedPeriod);
+    };
+
+    deptFilterSelect.addEventListener('change', updateReport);
+    periodFilterSelect.addEventListener('change', updateReport);
 }
 
 /**
  * Рендеринг всего отчета
  * @param {HTMLElement} contentContainer - DOM-элемент для вставки контента
  * @param {string} selectedDeptId - ID выбранного для фильтрации отдела
+ * @param {string} selectedPeriod - Выбранный период в формате YYYY-MM
  */
-async function renderReport(contentContainer, selectedDeptId = '') {
+async function renderReport(contentContainer, selectedDeptId = '', selectedPeriod = '') {
+    // Если период не указан, используем текущий месяц
+    if (!selectedPeriod) {
+        const now = new Date();
+        selectedPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+    
+    // Обновляем информацию о периоде в заголовке
+    const periodInfo = document.getElementById('period-info');
+    if (periodInfo) {
+        const [year, month] = selectedPeriod.split('-').map(Number);
+        const date = new Date(year, month - 1, 1);
+        const monthName = date.toLocaleDateString('uk-UA', { month: 'long', year: 'numeric' });
+        periodInfo.textContent = `Період аналізу: ${monthName}`;
+    }
+    
     contentContainer.innerHTML = ''; 
 
     // 1. Группируем менеджеров по отделам
@@ -320,7 +366,7 @@ async function renderReport(contentContainer, selectedDeptId = '') {
     // 3. Рассчитываем KPI для каждого менеджера
     for (const deptId in managersByDept) {
         for (const manager of managersByDept[deptId].managersData) {
-            manager.kpi = calculateManagerKpi(manager, calculationMaps);
+            manager.kpi = calculateManagerKpi(manager, calculationMaps, selectedPeriod);
         }
     }
     
@@ -362,9 +408,10 @@ async function renderReport(contentContainer, selectedDeptId = '') {
  * Расчет KPI для одного менеджера
  * @param {object} manager - Объект менеджера
  * @param {object} calculationMaps - Карты для расчетов
+ * @param {string} selectedPeriod - Период в формате YYYY-MM
  * @returns {object} - Объект с рассчитанными KPI
  */
-function calculateManagerKpi(manager, calculationMaps) {
+function calculateManagerKpi(manager, calculationMaps, selectedPeriod) {
     const { sphereToGroupsMap, clientToGroupsMap, clientToSphereMap } = calculationMaps;
     
     // 1. Общее кол-во клиентов менеджера из справочника
@@ -381,13 +428,21 @@ function calculateManagerKpi(manager, calculationMaps) {
     const totalClients = managerClients.length;
     console.log(`Менеджер ${manager.name}: знайдено ${totalClients} клієнтів`);
 
-    // 2. Продажи по клиентам менеджера (используем правильные поля)
+    // 2. Продажи по клиентам менеджера за выбранный период
     const salesForManager = masterData.filter(sale => {
         const clientCode = sale['Клиент.Код'] || sale['Клієнт.Код'];
-        return managerClients.includes(clientCode);
+        if (!managerClients.includes(clientCode)) return false;
+        
+        // Фильтрация по периоду (все кроме количества клиентов)
+        const saleDate = new Date(sale['Дата']);
+        const [year, month] = selectedPeriod.split('-').map(Number);
+        const periodStart = new Date(year, month - 1, 1);
+        const periodEnd = new Date(year, month, 0); // Последний день месяца
+        
+        return saleDate >= periodStart && saleDate <= periodEnd;
     });
 
-    console.log(`Менеджер ${manager.name}: знайдено ${salesForManager.length} продаж`);
+    console.log(`Менеджер ${manager.name}: знайдено ${salesForManager.length} продаж за ${selectedPeriod}`);
 
     // 3. Отгруженные клиенты и выручка
     const shippedClientsSet = new Set();
@@ -412,11 +467,19 @@ function calculateManagerKpi(manager, calculationMaps) {
     const avgCheck = shippedClients > 0 ? totalRevenue / salesForManager.length : 0;
     const ltv = totalClients > 0 ? totalRevenue / totalClients : 0;
 
-    // 4. Фокусные задачи
-    const managerFocusTasks = focusTasks.filter(task => 
-        task.managerId === manager.id && 
-        (task.status === 'completed' || task.status === 'завершено')
-    );
+    // 4. Фокусные задачи за выбранный период
+    const [year, month] = selectedPeriod.split('-').map(Number);
+    const periodStart = new Date(year, month - 1, 1);
+    const periodEnd = new Date(year, month, 0);
+    
+    const managerFocusTasks = focusTasks.filter(task => {
+        if (task.managerId !== manager.id) return false;
+        if (task.status !== 'completed' && task.status !== 'завершено') return false;
+        
+        // Фильтрация по периоду
+        const taskDate = new Date(task.completedDate || task.dateCompleted || task.date);
+        return taskDate >= periodStart && taskDate <= periodEnd;
+    });
     
     const focusTaskAmount = managerFocusTasks.reduce((sum, task) => {
         const taskSum = parseFloat(task.sum || task.amount || 0);
@@ -584,21 +647,21 @@ function createManagerRowHTML(manager) {
 
     return `
         <tr class="border-b border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-100/50 dark:hover:bg-gray-800/50">
-            <td class="p-4 align-middle font-medium text-gray-900 dark:text-white">${manager.name || 'Без імені'}</td>
-            <td class="p-4 align-middle text-center">${kpi.totalClients} / ${kpi.shippedClients}</td>
+            <td class="p-4 align-middle font-medium text-black">${manager.name || 'Без імені'}</td>
+            <td class="p-4 align-middle text-center text-black">${kpi.totalClients} / ${kpi.shippedClients}</td>
             <td class="p-4 align-middle text-center">
                 <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
                     <div class="${progressColor} h-2.5 rounded-full" style="width: ${Math.min(kpi.shipmentPercentage, 100)}%"></div>
                 </div>
-                <span class="text-xs text-gray-500 dark:text-gray-400">${formatPercentage(kpi.shipmentPercentage)}</span>
+                <span class="text-xs text-black">${formatPercentage(kpi.shipmentPercentage)}</span>
             </td>
-            <td class="p-4 align-middle text-right">${formatCurrency(kpi.avgCheck)}</td>
-            <td class="p-4 align-middle text-right">${formatCurrency(kpi.ltv)}</td>
-            <td class="p-4 align-middle text-center">${formatPercentage(kpi.productCoverage)}</td>
-            <td class="p-4 align-middle text-right">${formatCurrency(kpi.totalRevenue)}</td>
-            <td class="p-4 align-middle text-right font-semibold text-green-600 dark:text-green-400">${formatCurrency(kpi.focusTaskAmount)}</td>
-            <td class="p-4 align-middle text-center">${kpi.focusClients}</td>
-            <td class="p-4 align-middle text-center">${formatPercentage(kpi.focusBasePercentage)}</td>
+            <td class="p-4 align-middle text-right text-black">${formatCurrency(kpi.avgCheck)}</td>
+            <td class="p-4 align-middle text-right text-black">${formatCurrency(kpi.ltv)}</td>
+            <td class="p-4 align-middle text-center text-black">${formatPercentage(kpi.productCoverage)}</td>
+            <td class="p-4 align-middle text-right text-black">${formatCurrency(kpi.totalRevenue)}</td>
+            <td class="p-4 align-middle text-right font-semibold text-black">${formatCurrency(kpi.focusTaskAmount)}</td>
+            <td class="p-4 align-middle text-center text-black">${kpi.focusClients}</td>
+            <td class="p-4 align-middle text-center text-black">${formatPercentage(kpi.focusBasePercentage)}</td>
         </tr>
     `;
 }
