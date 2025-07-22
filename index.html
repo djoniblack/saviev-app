@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAVIEV dev: Керування людьми</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="css/style.css?v=20240610">
+</head>
+<body class="bg-gray-900 text-gray-200">
+    <div id="globalLoader" style="position:fixed;z-index:9999;top:0;left:0;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:rgba(17,24,39,0.98);transition:opacity 0.3s;">
+      <div class="loader-dots">
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <!-- СТРАНИЦА-ЗАГРУЗЧИК -->
+    <div id="landingPage" class="page-transition active">
+        <div class="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
+            <div class="text-center">
+                <h1 class="text-6xl md:text-8xl font-black tracking-tighter bg-yellow-400 text-black px-6 py-2 rounded-lg">SAVIEV</h1>
+                <p class="mt-4 text-xl md:text-2xl text-gray-400">керування людьми</p>
+                <button id="startAppBtn" class="mt-12 px-8 py-4 bg-indigo-600 text-white font-semibold rounded-lg shadow-lg hover:bg-indigo-700 transition-transform transform hover:scale-105">
+                    Розпочати
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- СТРАНИЦА НАСТРОЙКИ/ВХОДА -->
+    <div id="setupPage" class="page-transition">
+        <div class="flex flex-col items-center justify-center min-h-screen bg-gray-900 p-4">
+            <div id="authContainer" class="w-full max-w-sm hidden">
+                <div class="bg-gray-800 p-6 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-bold text-white text-center mb-6">Вхід або Реєстрація</h2>
+                    <div class="space-y-4">
+                        <input id="authEmail" type="email" placeholder="Електронна пошта" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input id="authPassword" type="password" placeholder="Пароль (мін. 6 символів)" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div id="authError" class="text-red-400 text-sm mt-3 text-center h-4"></div>
+                    <div class="mt-6 flex gap-4">
+                        <button id="loginBtn" class="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Увійти</button>
+                        <button id="registerBtn" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Реєстрація</button>
+                    </div>
+                </div>
+            </div>
+            <div id="companySelectionContainer" class="hidden w-full max-w-2xl text-center">
+                 <div class="flex justify-between items-center mb-4 w-full">
+                    <h2 class="text-4xl font-bold text-white">Вибір компанії</h2>
+                    <button id="logoutBtnFromSetup" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">Вийти</button>
+                </div>
+                <p class="mt-2 text-lg text-gray-400">Оберіть існуючу компанію або створіть нову.</p>
+                <div id="existingCompaniesSection" class="mt-8 bg-gray-800 p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-white">Ваші компанії</h3>
+                    <ul id="companyList" class="mt-4 space-y-2 text-left max-h-60 overflow-y-auto"></ul>
+                    <button id="showCreateCompanyFormBtn" class="mt-6 w-full px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700">Створити нову компанію</button>
+                </div>
+                <div id="createCompanyForm" class="hidden mt-8 bg-gray-800 p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-white mb-4">Створення нової компанії</h3>
+                    <div class="text-left space-y-4">
+                        <input id="newCompanyName" type="text" placeholder="Назва компанії (обов'язково)" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input id="newCompanySphere" type="text" placeholder="Сфера діяльності" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div class="items-center mt-4 px-4 py-3 gap-2 flex">
+                        <button id="createCompanyBtn" class="w-full px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700">Створити</button>
+                        <button id="cancelCreateCompanyBtn" class="w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Скасувати</button>
+                    </div>
+                </div>
+                <div id="companySetupSteps" class="hidden mt-8 bg-gray-800 p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-white">Компанія: <span id="selectedCompanyName" class="text-indigo-400"></span></h3>
+                    <p class="mt-2 text-gray-400">Натисніть кнопку, щоб перейти до табеля.</p>
+                    <div class="mt-6 flex flex-col md:flex-row gap-4 justify-center">
+                        <button id="goToAppBtn" class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Перейти до табеля →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ОСНОВНОЙ КОНТЕЙНЕР ПРИЛОЖЕНИЯ (скрыт до входа) -->
+    <div id="appContainer" class="hidden p-4 md:p-8 ">
+        <!-- НОВАЯ НАВИГАЦИЯ -->
+        <header class="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
+            <div class="flex items-center gap-4">
+                <div class="text-sm">
+                    <div class="text-gray-400">Компанія</div>
+                    <div id="currentCompanyNameDisplay" class="font-semibold text-indigo-400 text-lg">Не обрано</div>
+                </div>
+                <button id="changeCompanyBtn" class="p-2 bg-gray-700 text-gray-200 rounded-md hover:bg-gray-600 text-sm">Змінити</button>
+            </div>
+            <nav class="bg-gray-800 p-2 rounded-lg shadow-lg flex-grow md:flex-grow-0 flex flex-wrap justify-center space-x-2">
+                <button data-target="appPage" class="nav-btn px-4 py-2 text-white font-semibold rounded-md transition-colors bg-gray-700 hover:bg-indigo-600 active:bg-indigo-600 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Табель
+                </button>
+                <button data-target="massSalaryPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-blue-600 active:bg-blue-600 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 7v7m-7-7h14"/></svg>Розрахунок ЗП
+                </button>
+                <button data-target="salaryPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-purple-600 active:bg-purple-600 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m4 0h-1v4h-1m-4 0h1v-4h1m-4 0h1v4h1"/></svg>KPI (Одиночний)
+                </button>
+                <button data-target="vacationsPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-green-600 active:bg-green-600 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Відпустки
+                </button>
+                <button data-target="reportsPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-yellow-600 active:bg-yellow-600 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6"/></svg>Звіти
+                </button>
+                <button data-target="competenciesPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-pink-600 active:bg-pink-600 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 7v7m-7-7h14"/></svg>Компетенції
+                </button>
+                <button data-target="orgchartPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-indigo-600 active:bg-indigo-600 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg>Оргструктура
+                </button>
+                <button data-target="salesAssistantPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-orange-600 active:bg-orange-600 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6"/></svg>Помічник продажу
+                </button>
+            </nav>
+            <div class="flex items-center gap-4">
+                <button id="notificationsBellBtn" class="p-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 relative" title="Сповіщення">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <span id="notificationIndicator" class="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-gray-900 bg-red-500 hidden"></span>
+                </button>
+                <div id="notificationsDropdown" class="absolute top-16 right-4 sm:right-8 md:right-12 mt-2 w-72 bg-gray-700 rounded-md shadow-lg overflow-hidden z-20 hidden">
+                    <div class="py-2 px-3 text-sm font-semibold text-white border-b border-gray-600">Сповіщення</div>
+                    <div id="notificationsListContainer" class="max-h-80 overflow-y-auto">
+                        <!-- Notifications will be listed here -->
+                        <p class="text-gray-400 text-center py-4">Немає нових сповіщень.</p>
+                    </div>
+                </div>
+
+                <button id="settingsMenuBtn" class="bg-gray-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 flex items-center gap-2 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" /></svg>
+                    <span>Налаштування</span>
+                </button>
+                 <button id="logoutBtn" class="p-2 bg-red-600/80 text-white rounded-md hover:bg-red-600" title="Вийти">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- КОНТЕЙНЕР ДЛЯ СТРАНИЦ -->
+        <div id="page-container" class="relative">
+            <div id="appPage" class="page-transition">
+                <div class="w-full bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
+                    <div class="flex flex-col xl:flex-row justify-between items-center mb-4 gap-4">
+                        <h1 class="text-2xl font-bold text-white">Табель</h1>
+                        <div class="flex flex-wrap items-center justify-center gap-4">
+                            <button id="prevMonth" class="px-3 py-2 bg-gray-700 rounded-md hover:bg-gray-600">←</button>
+                            <div id="currentMonthDisplay" class="text-xl font-semibold text-gray-300 w-48 text-center"></div>
+                            <button id="nextMonth" class="px-3 py-2 bg-gray-700 rounded-md hover:bg-gray-600">→</button>
+                        </div>
+                        <div class="flex items-center gap-4 bg-gray-900 px-4 py-2 rounded-lg">
+                            <div id="globalNormContainer" class="flex items-center gap-2">
+                                <label for="workNorm" class="text-gray-400">Загальна норма днів:</label>
+                                <input type="number" id="workNorm" value="21" class="dark-input w-20 p-2 text-center">
+                            </div>
+                            <div class="toggle-container">
+                                <span id="normTypeTextGlobal" class="font-semibold text-white">Загальна</span>
+                                <label class="toggle-label">
+                                    <input type="checkbox" id="normTypeToggle">
+                                    <span class="slider"></span>
+                                </label>
+                                <span id="normTypeTextSchedule" class="text-gray-400">За графіком</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 p-4 bg-gray-900 rounded-lg items-end">
+                        <div><label for="departmentFilter" class="block text-sm font-medium text-gray-400">Фільтр по відділу</label><select id="departmentFilter" class="dark-input mt-1 block w-full p-2"></select></div>
+                        <div><label for="employeeFilter" class="block text-sm font-medium text-gray-400">Фільтр по співробітнику</label><input type="text" id="employeeFilter" list="employeeDatalist" class="dark-input mt-1 block w-full p-2" placeholder="Почніть вводити ім'я..."><datalist id="employeeDatalist"></datalist></div>
+                        <div class="flex items-center"><input type="checkbox" id="showArchived" class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500"><label for="showArchived" class="ml-2 block text-sm text-gray-300">Показати архівних</label></div>
+                        <div><button id="resetFilters" class="w-full p-2 bg-gray-600 text-white font-semibold rounded-md hover:bg-gray-500">Скинути фільтри</button></div>
+                    </div>
+                    <div class="table-container">
+                        <table id="timesheetTable" class="w-full">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="mt-6 flex flex-wrap justify-between items-center gap-4">
+                        <button id="openExportModalBtn" class="bg-gray-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 flex items-center gap-2 transition-colors">Експорт</button>
+                        <button id="clearMonthData" class="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600">Очистити табель за місяць</button>
+                    </div>
+                </div>
+            </div>
+            <div id="massSalaryPage" class="page-transition">
+                <div class="w-full bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-900 rounded-lg items-end">
+                        <div class="flex items-center gap-4"> 
+                            <button id="massSalaryPrevMonth" class="px-3 py-2 bg-gray-700 rounded-md hover:bg-gray-600">←</button> 
+                            <div id="massSalaryCurrentMonth" class="text-lg font-semibold text-gray-300 w-48 text-center"></div> 
+                            <button id="massSalaryNextMonth" class="px-3 py-2 bg-gray-700 rounded-md hover:bg-gray-600">→</button>
+                        </div>
+                        <div>
+                            <label for="massSalaryDepartmentFilter" class="block text-sm font-medium text-gray-400">Фільтр по відділу</label>
+                            <select id="massSalaryDepartmentFilter" class="dark-input mt-1 block w-full p-2"><option value="">Всі відділи</option></select>
+                        </div>
+                        <div>
+                            <button id="generateMassSalaryTableBtn" class="w-full p-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Сформувати таблицю</button>
+                        </div>
+                    </div>
+                    <div id="massSalaryTableContainer" class="space-y-8"></div>
+                    <div id="massSalaryFooterActions" class="hidden mt-8 pt-4 border-t border-gray-700 flex justify-end gap-4">
+                        <button id="calculateAllSalariesBtn" class="px-6 py-2 bg-teal-600 text-white font-semibold rounded-md hover:bg-teal-700">Розрахувати все</button>
+                        <button id="saveMassSalaryBtn" class="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Зберегти розрахунок</button>
+                        <button id="exportAllSalariesBtn" class="px-6 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700">Експорт в Excel</button>
+                    </div>
+                </div>
+            </div>
+            <div id="salaryPage" class="page-transition">
+                <div class="w-full bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
+                    <div id="kpiSalaryContent" class="max-h-[80vh] flex flex-col">
+                        <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                            <div class="flex items-center gap-4"> 
+                                <button id="kpiPrevMonthSalary" class="px-3 py-2 bg-gray-700 rounded-md hover:bg-gray-600">←</button> 
+                                <div id="kpiCurrentMonthSalary" class="text-lg font-semibold text-gray-300 w-48 text-center"></div> 
+                                <button id="kpiNextMonthSalary" class="px-3 py-2 bg-gray-700 rounded-md hover:bg-gray-600">→</button>
+                            </div>
+                            <div>
+                                <label for="kpiEmployeeSelectSalary" class="block text-sm font-medium text-gray-400">Оберіть співробітника:</label>
+                                <select id="kpiEmployeeSelectSalary" class="dark-input mt-1 block w-full p-2"><option value="">-- Оберіть співробітника --</option></select>
+                            </div>
+                        </div>
+                        <div id="kpiSalaryDetails" class="hidden overflow-y-auto flex-grow">
+                            <div class="mb-4">
+                                <button id="loadKpiActualsBtn" class="w-full p-2 text-sm bg-blue-800 text-blue-200 rounded-md hover:bg-blue-700">Завантажити збережені KPI дані</button>
+                            </div>
+                            <div id="salaryCalculationForm" class="space-y-6 pr-2">
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div class="p-4 border border-gray-700 rounded-lg space-y-4">
+                                        <h4 class="font-semibold">Дані для розрахунку ЗП</h4>
+                                        <div><label class="block text-sm">Базова ставка (ЗП), грн</label><input type="number" id="kpiSalaryBaseSalary" class="kpi-input" placeholder="8000" disabled></div>
+                                        <div><label class="block text-sm mt-4">База для розрахунку премії, грн</label><input type="number" id="kpiSalaryPremiumBase" class="kpi-input" placeholder="18000" disabled></div>
+                                        <div id="kpiSalaryCategoriesContainer"><h5 class="font-semibold mt-4">Виконання KPI</h5></div>
+                                        <div id="kpiSalaryFocusTasksContainer"><h5 class="font-semibold mt-4">Фокусні задачі</h5><input type="number" id="kpiSalaryFocusTasks" class="kpi-input" placeholder="Кількість виконаних задач"></div>
+                                        <div id="kpiSalaryBonusesContainer"><h5 class="font-semibold mt-4">Додаткові бонуси</h5></div>
+                                        <div><label class="block text-sm">Сума податків, грн</label><input type="number" id="kpiSalaryTaxes" class="kpi-input" placeholder="4600"></div>
+                                    </div>
+                                    <div class="p-4 border border-gray-700 rounded-lg space-y-4">
+                                        <h4 class="font-semibold">Результат розрахунку</h4>
+                                        <p class="text-lg">Загальна сума: <span id="calculatedTotalSalary" class="font-bold text-green-400">0.00</span> грн</p>
+                                        <button id="calculateSalaryBtn" class="w-full p-2 bg-teal-600 text-white rounded-md shadow-sm hover:bg-teal-700">Розрахувати ЗП</button>
+                                        <button id="saveKpiActualsBtn" class="w-full p-2 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700 mt-2">Зберегти поточні дані KPI</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- СТОРІНКА ВІДПУСТОК -->
+            <div id="vacationsPage" class="page-transition">
+                <div class="w-full bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
+                    <div class="mb-6 border-b border-gray-700">
+                        <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                            <button id="vacationTabMyRequests" type="button" class="report-tab active-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v11.494m0 0a8.485 8.485 0 0011.026 0M12 17.747a8.485 8.485 0 01-11.026 0M12 6.253a8.485 8.485 0 0111.026 0M12 6.253L12 3m0 3.253L6 3m6 3.253l6-3.253M12 21v-2.253"></path></svg>
+                                Мої заявки
+                            </button>
+                            <button id="vacationTabManageRequests" type="button" class="report-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm hidden">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
+                                Керування запитами
+                            </button>
+                        </nav>
+                    </div>
+
+                    <div id="vacationPanelMyRequests" class="report-tab-panel active">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-white">Мої заявки на відпустку</h2>
+                            <button id="createVacationRequestBtn" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700">Створити запит</button>
+                        </div>
+                        <div id="myVacationRequestsList" class="space-y-3">
+                            <!-- Placeholder, actual list items will be generated by JS -->
+                            <p class="text-gray-400">У вас ще немає заявок на відпустку.</p>
+                        </div>
+                    </div>
+
+                    <div id="vacationPanelManageRequests" class="report-tab-panel">
+                         <h2 class="text-xl font-bold text-white mb-4">Запити на відпустку для погодження</h2>
+                         <!-- Add filters here later if needed -->
+                         <div id="manageVacationRequestsList" class="space-y-3">
+                            <!-- Placeholder -->
+                            <p class="text-gray-400">Немає запитів, що потребують розгляду.</p>
+                         </div>
+                    </div>
+                </div>
+            </div>
+            <!-- СТОРІНКА ЗВІТІВ -->
+            <div id="reportsPage" class="page-transition">
+                <div class="w-full bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
+                    <div class="mb-6 border-b border-gray-700">
+                        <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                            <button id="reportTabMonthlyDynamics" type="button" class="report-tab active-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm">Динаміка по Місяцях</button>
+                            <button id="reportTabDepartment" type="button" class="report-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm">Звіт по Відділу</button>
+                            <button id="reportTabBonuses" type="button" class="report-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm">Звіт по Бонусах</button>
+                            <button id="reportTabComparison" type="button" class="report-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm">Порівняльний Звіт</button>
+                        </nav>
+                    </div>
+
+                    <!-- Вкладка: Динаміка по місяцях -->
+                    <div id="reportTabPanelMonthlyDynamics" class="report-tab-panel active">
+                      <button id="openAddSalesModalBtn" class="mb-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded">Додати продажі</button>
+                      <div class="mb-6">
+                          <label for="reportDepartmentFilter" class="block text-sm font-medium text-gray-400">Фільтр по відділу:</label>
+                          <select id="reportDepartmentFilter" class="dark-input mt-1 block w-full md:w-1/3 p-2">
+                              <option value="all">Всі відділи</option>
+                          </select>
+                      </div>
+                      <div class="mb-8">
+                          <h2 class="text-2xl font-bold text-white">Порівняння динаміки по місяцях</h2>
+                          <p class="text-sm text-gray-400 mt-1 max-w-3xl">Аналіз зміни фонду оплати праці (ФОП) та загальної суми продажів.</p>
+                      </div>
+                      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                          <div class="bg-gray-700 p-6 rounded-2xl shadow-lg border border-gray-600">
+                              <h3 class="text-lg font-semibold text-white mb-4">Динаміка Фонду Оплати Праці (ФОП)</h3>
+                              <div class="report-chart-container">
+                                  <canvas id="salaryDynamicsChart"></canvas>
+                              </div>
+                          </div>
+                          <div class="bg-gray-700 p-6 rounded-2xl shadow-lg border border-gray-600">
+                               <h3 class="text-lg font-semibold text-white mb-4">Динаміка Суми Продажів (демо)</h3>
+                              <div class="report-chart-container">
+                                  <canvas id="salesDynamicsChart"></canvas>
+                              </div>
+                          </div>
+                      </div>
+                      <div>
+                           <h3 class="text-lg font-semibold text-white mb-4">Деталізовані дані по місяцях</h3>
+                           <div class="overflow-x-auto bg-gray-700 rounded-lg shadow border border-gray-600">
+                               <table class="min-w-full divide-y divide-gray-600">
+                                  <thead class="bg-gray-750">
+                                      <tr>
+                                          <th class="px-6 py-3 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Місяць</th>
+                                          <th class="px-6 py-3 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">Загальний ФОП</th>
+                                          <th class="px-6 py-3 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">Сума продажів (демо)</th>
+                                          <th class="px-6 py-3 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">Співвідношення (ЗП / Продажі)</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody id="details-table-body" class="bg-gray-700 divide-y divide-gray-600"></tbody>
+                               </table>
+                           </div>
+                      </div>
+                    </div>
+                    <!-- Вкладка: Звіт по відділу -->
+                    <div id="reportTabPanelDepartment" class="report-tab-panel">
+                      <h2 class="text-2xl font-bold text-white mb-4">Звіт по Відділу</h2>
+                      <div id="departmentReportContainer"></div>
+                    </div>
+                    <!-- Вкладка: Звіт по бонусах -->
+                    <div id="reportTabPanelBonuses" class="report-tab-panel">
+                      <h2 class="text-2xl font-bold text-white mb-4">Звіт по Бонусах</h2>
+                      <div id="bonusesReportContainer"></div>
+                    </div>
+                    <!-- Вкладка: Порівняльний звіт -->
+                    <div id="reportTabPanelComparison" class="report-tab-panel">
+                      <h2 class="text-2xl font-bold text-white mb-4">Порівняльний Звіт</h2>
+                      <div id="comparisonReportContainer"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- СТОРІНКА КОМПЕТЕНЦІЙ -->
+            <div id="competenciesPage" class="page-transition">
+                <div class="w-full bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
+                    <!-- Навігація по вкладках -->
+                    <div class="border-b border-gray-700 mb-8">
+                        <nav class="flex space-x-4" aria-label="Tabs">
+                            <button id="tab-assessment" class="tab active" onclick="switchCompetencyTab('assessment')">Оцінка Співробітника</button>
+                            <button id="tab-history" class="tab" onclick="switchCompetencyTab('history')">Історія</button>
+                            <button id="tab-reports" class="tab" onclick="switchCompetencyTab('reports')">Звіти по компетенціям</button>
+                            <button id="tab-settings" class="tab" onclick="switchCompetencyTab('settings')">Налаштування компетенцій</button>
+                        </nav>
+                    </div>
+
+                    <!-- Вкладка: Оцінка Співробітника -->
+                    <div id="panel-assessment" class="tab-panel active">
+                        <div class="mb-8">
+                            <h1 class="text-3xl font-bold text-white">Аркуш Оцінки Співробітника</h1>
+                            <p class="text-gray-400 mt-1">Оберіть співробітника та період для перегляду або проведення оцінки.</p>
+                            <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-gray-900/50 border border-gray-700 rounded-xl">
+                                <div><label for="departmentSelector" class="block text-sm font-medium text-gray-400 mb-1">Відділ</label><select id="departmentSelector" class="dark-input w-full"></select></div>
+                                <div><label for="employeeSelector" class="block text-sm font-medium text-gray-400 mb-1">Співробітник</label><select id="employeeSelector" class="dark-input w-full" disabled><option value="">-- Спочатку оберіть відділ --</option></select></div>
+                                <div><label for="periodSelector" class="block text-sm font-medium text-gray-400 mb-1">Період Оцінки</label><input type="month" id="periodSelector" class="dark-input w-full"></div>
+                            </div>
+                        </div>
+                        <div id="assessmentContent" class="content-area">
+                             <div class="flex justify-end mb-8"><button id="saveAssessmentBtn" class="btn btn-primary">Зберегти Оцінку</button></div>
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                <div class="lg:col-span-1 space-y-8">
+                                    <div id="employeeCard" class="bg-gray-800 border border-gray-700 p-6 rounded-2xl"><div class="flex items-center space-x-4"><img id="employeePhoto" src="" alt="Фото співробітника" class="w-20 h-20 rounded-full border-2 border-indigo-500"><div><h2 id="employeeName" class="text-2xl font-bold text-white"></h2><p id="employeePosition" class="text-indigo-400"></p></div></div></div>
+                                    <div class="bg-gray-800 border border-gray-700 p-6 rounded-2xl"><h3 class="text-xl font-bold text-white mb-4">Матриця компетенцій</h3><div class="relative h-80"><canvas id="competencyRadarChart"></canvas></div></div>
+                                </div>
+                                <div class="lg:col-span-2 bg-gray-800 border border-gray-700 p-6 rounded-2xl"><h3 class="text-xl font-bold text-white mb-6">Детальна оцінка компетенцій</h3><div id="competencyList" class="space-y-6"></div><div class="mt-8"><label for="overallComment" class="block text-sm font-medium text-gray-400 mb-1">Загальний коментар керівника</label><textarea id="overallComment" rows="4" class="dark-input w-full" placeholder="Введіть загальний відгук про роботу співробітника за цей період..."></textarea></div></div>
+                            </div>
+                        </div>
+                        <div id="placeholder" class="text-center py-20 border-2 border-dashed border-gray-700 rounded-xl"><svg class="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg><h3 class="mt-2 text-xl font-semibold text-white">Оберіть співробітника</h3><p class="mt-1 text-sm text-gray-500">Щоб розпочати оцінку, будь ласка, оберіть відділ та співробітника у фільтрах вище.</p></div>
+                    </div>
+
+                    <!-- Вкладка: Історія -->
+                    <div id="panel-history" class="tab-panel">
+                        <div class="mb-8">
+                            <h1 class="text-3xl font-bold text-white">Історія Оцінок</h1>
+                            <p class="text-gray-400 mt-1">Всі попередні оцінки співробітника за періодами.</p>
+                        </div>
+                        <div id="historyList" class="space-y-6"></div>
+                    </div>
+
+                    <!-- Вкладка: Звіти -->
+                    <div id="panel-reports" class="tab-panel">
+                        <!-- Подвкладки навигации -->
+                        <div class="mb-6 border-b border-gray-700">
+                            <nav class="flex space-x-4" aria-label="Report Tabs">
+                                <button id="reportTabMain" type="button" class="report-tab active-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm">Головний звіт</button>
+                                <button id="reportTabCompare" type="button" class="report-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm">Порівняльний звіт</button>
+                            </nav>
+                        </div>
+                        <!-- Головний звіт -->
+                        <div id="mainReportTabPanel" class="report-tab-panel active">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                                <div>
+                                    <h1 class="text-3xl font-bold text-white">Звіти по компетенціям</h1>
+                                    <p class="text-gray-400 mt-1">Аналізуйте сильні сторони та зони росту вашої команди.</p>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <label for="reportDeptSelector" class="text-sm font-medium text-gray-400">Відділ:</label>
+                                    <select id="reportDeptSelector" class="dark-input"></select>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <label for="reportPeriodSelector" class="text-sm font-medium text-gray-400">Період:</label>
+                                    <input type="month" id="reportPeriodSelector" class="dark-input w-full">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                                <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700"><h4 class="text-gray-400">Середня оцінка (Q2 2025)</h4><p id="reportAvgScore" class="text-4xl font-bold text-white mt-1">4.2 / 5</p></div>
+                                <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700"><h4 class="text-gray-400">Найсильніша компетенція</h4><p id="reportTopComp" class="text-3xl font-bold text-green-400 mt-1">Технічна експертиза</p></div>
+                                <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700"><h4 class="text-gray-400">Зона для розвитку</h4><p id="reportLowComp" class="text-3xl font-bold text-yellow-400 mt-1">Комунікація</p></div>
+                            </div>
+                            <div class="grid grid-cols-1 xl:grid-cols-5 gap-8">
+                                <div class="xl:col-span-3 bg-gray-800 p-6 rounded-2xl border border-gray-700"><h3 class="text-xl font-bold text-white mb-4">Середні оцінки по компетенціям (Q2 2025)</h3><div class="relative h-96"><canvas id="competencyBarChart"></canvas></div></div>
+                                <div class="xl:col-span-2 bg-gray-800 p-6 rounded-2xl border border-gray-700"><h3 class="text-xl font-bold text-white mb-4">Оцінки співробітників (Q2 2025)</h3><div id="reportEmployeeList" class="space-y-3 overflow-y-auto h-96 pr-2"></div></div>
+                            </div>
+                        </div>
+                        <!-- Порівняльний звіт -->
+                        <div id="compareReportTabPanel" class="report-tab-panel">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                                <div>
+                                    <h1 class="text-3xl font-bold text-white">Порівняльний звіт по компетенціям</h1>
+                                    <p class="text-gray-400 mt-1">Порівняйте динаміку розвитку компетенцій між двома періодами.</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-4 items-end mb-6">
+                                <label class="text-gray-400">Порівняти періоди:</label>
+                                <input type="month" id="reportComparePeriod1" class="dark-input mx-2">
+                                <input type="month" id="reportComparePeriod2" class="dark-input mx-2">
+                                <button id="reportCompareBtn" class="btn btn-secondary">Порівняти</button>
+                            </div>
+                            <div id="reportCompareResult" class="mb-8"></div>
+                            <!-- Місце для майбутнього графіка порівняння -->
+                            <div id="reportCompareChartContainer" class="my-8"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Вкладка: Налаштування -->
+                    <div id="panel-settings" class="tab-panel">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8"><div><h1 class="text-3xl font-bold text-white">Налаштування Моделей Компетенцій</h1><p class="text-gray-400 mt-1">Створюйте та редагуйте компетенції, що використовуються для оцінки.</p></div></div>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div class="lg:col-span-1 bg-gray-800 p-6 rounded-2xl border border-gray-700"><h3 class="text-xl font-bold text-white mb-4">Список компетенцій</h3><div id="settingsCompetencyList" class="space-y-2"></div><button id="addNewCompetencyBtn" class="btn btn-secondary w-full mt-4">Додати нову</button></div>
+                            <div class="lg:col-span-2 bg-gray-800 p-6 rounded-2xl border border-gray-700"><h3 class="text-xl font-bold text-white mb-6">Редагування: <span id="editingCompetencyName" class="text-indigo-400"></span></h3><div id="settingsForm" class="space-y-4"><div><label for="compName" class="block text-sm font-medium text-gray-400 mb-1">Назва компетенції</label><input type="text" id="compName" class="dark-input w-full"></div><div><label for="compCategory" class="block text-sm font-medium text-gray-400 mb-1">Категорія</label><input type="text" id="compCategory" class="dark-input w-full"></div><div><label for="compDesc" class="block text-sm font-medium text-gray-400 mb-1">Опис</label><textarea id="compDesc" rows="3" class="dark-input w-full"></textarea></div><div><h4 class="text-sm font-medium text-gray-400 mb-2">Поведінкові індикатори</h4><div id="indicatorList" class="space-y-2"></div><button id="addIndicatorBtn" class="btn btn-secondary text-sm mt-2">Додати індикатор</button></div><div class="mt-4 pt-4 border-t border-gray-600"><h4 class="text-sm font-medium text-gray-400 mb-2">Призначення відділам</h4><div id="departmentAssignmentList" class="space-y-2"></div></div><div class="mt-4 pt-4 border-t border-gray-600">
+  <label for="compGrowthComment" class="block text-sm font-medium text-gray-400 mb-1">Порада/коментар помічника зростання</label>
+  <textarea id="compGrowthComment" rows="2" class="dark-input w-full" placeholder="Введіть текст поради або декілька порад через Enter..."></textarea>
+</div>
+<div class="mt-2">
+  <label for="compGrowthThreshold" class="block text-sm font-medium text-gray-400 mb-1">Поріг балу для появи помічника</label>
+  <input id="compGrowthThreshold" type="number" min="1" max="5" class="dark-input w-32" value="4">
+</div></div><div class="flex justify-end gap-4 mt-8 border-t border-gray-700 pt-6"><button id="deleteCompetencyBtn" class="btn btn-danger">Видалити</button><button id="saveCompetencyBtn" class="btn btn-primary">Зберегти зміни</button></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Помічник зростання -->
+            <!-- This block is removed to avoid duplicate IDs with the modal version below -->
+            
+            <!-- After all other tab-panel -->
+            <div id="orgchartPage" class="page-transition hidden">
+              <div class="w-full bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
+                <div id="org-chart-container" style="height: 80vh;"></div>
+              </div>
+            </div>
+            <div id="focusPage" class="page-transition hidden">
+                <div class="w-full bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
+                    <h1 class="text-3xl font-bold text-white mb-4">Фокус</h1>
+                    <div id="focus-tasks-list" class="mb-6"></div>
+                    <button id="createFocusTaskBtn" class="px-6 py-2 bg-orange-600 text-white font-semibold rounded-md hover:bg-orange-700 mb-4 hidden">Створити нову задачу</button>
+                    <div id="focus-task-details"></div>
+              </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- МОДАЛЬНЫЕ ОКНА -->
+    <div id="loading" class="loading-overlay hidden z-50"><div><div class="loader mx-auto"></div><p class="mt-4 text-white font-semibold">Завантаження даних...</p></div></div>
+    <div id="confirmationModal" class="modal-overlay modal-overlay-fade hidden z-40"><div class="relative p-5 border border-gray-700 w-full max-w-sm shadow-lg rounded-md bg-gray-800 modal-content-flip"><h3 id="confirmationMessage" class="text-lg font-medium text-white mb-4"></h3><div class="items-center mt-4 px-4 py-3 gap-2 flex"><button id="confirmYesBtn" class="w-full px-4 py-2 bg-red-600 text-white rounded-md shadow-sm hover:bg-red-700">Так</button><button id="confirmNoBtn" class="w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Ні</button></div></div></div>
+    
+    <div id="employeeManagerModal" class="modal-overlay modal-overlay-fade hidden z-20"><div class="relative p-6 border border-gray-700 w-full max-w-6xl shadow-lg rounded-md bg-gray-800 max-h-[90vh] flex flex-col modal-content-flip"><span class="modal-close-btn">×</span><div class="flex justify-between items-center mb-4"><h3 class="text-lg leading-6 font-medium text-white">Керування співробітниками</h3><button id="openAddEmployeeModalBtn" class="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">Створити нового</button></div><div id="employeesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto flex-grow p-4"></div><button class="cancel-btn mt-6 w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Закрити</button></div></div>
+    <div id="departmentManagerModal" class="modal-overlay modal-overlay-fade hidden z-20"><div class="relative p-6 border border-gray-700 w-full max-w-3xl shadow-lg rounded-md bg-gray-800 max-h-[90vh] flex flex-col modal-content-flip"><span class="modal-close-btn">×</span><div class="flex justify-between items-center mb-4"><h3 class="text-lg leading-6 font-medium text-white">Керування відділами</h3><button id="openAddDepartmentModalBtn" class="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">Створити нового</button></div><div id="departmentsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto flex-grow p-1 -mx-1"></div><button class="cancel-btn mt-6 w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Закрити</button></div></div>
+    <div id="positionManagerModal" class="modal-overlay modal-overlay-fade hidden z-20"><div class="relative p-6 border border-gray-700 w-full max-w-3xl shadow-lg rounded-md bg-gray-800 max-h-[90vh] flex flex-col modal-content-flip"><span class="modal-close-btn">×</span><div class="flex justify-between items-center mb-4"><h3 class="text-lg leading-6 font-medium text-white">Керування посадами</h3><button id="openAddPositionModalBtn" class="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">Створити нову</button></div><div id="positionsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto flex-grow p-1 -mx-1"></div><button class="cancel-btn mt-6 w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Закрити</button></div></div>
+    <div id="cellEditorModal" class="modal-overlay modal-overlay-fade hidden z-20"><div class="relative p-5 border border-gray-700 w-full max-w-md shadow-lg rounded-md bg-gray-800 modal-content-flip"><span class="modal-close-btn">×</span><h3 id="cellEditorTitle" class="text-lg leading-6 font-medium text-white mb-4">Редагувати день</h3><div class="cell-editor-loader" style="display:none;text-align:center;padding:2em 0"><div class="loader mx-auto"></div><p class="mt-2 text-white font-semibold">Завантаження...</p></div><div class="cell-editor-content"><div class="space-y-4"><div><h4 class="font-semibold text-left mb-2 text-white">План:</h4><div id="planStatusButtons" class="flex justify-center gap-2"></div></div><div><h4 class="font-semibold text-left mb-2 text-white">Факт:</h4><div id="factStatusButtons" class="flex justify-center gap-2"></div></div></div><button id="clearCellDataBtn" class="mt-6 w-full px-4 py-2 bg-red-600 text-white rounded-md shadow-sm hover:bg-red-700">Очистити</button><button class="cancel-btn mt-2 w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Закрити</button></div></div></div>
+    <div id="exportModal" class="modal-overlay modal-overlay-fade hidden z-20"><div class="relative p-6 border border-gray-700 w-full max-w-lg shadow-lg rounded-md bg-gray-800 modal-content-flip"><span class="modal-close-btn">×</span><h3 class="text-lg leading-6 font-medium text-white mb-4">Налаштування звіту</h3><div class="space-y-4"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label for="dateFrom" class="block text-sm font-medium text-gray-400 text-left">Період з:</label><input type="date" id="dateFrom" class="dark-input mt-1 block w-full p-2"></div><div><label for="dateTo" class="block text-sm font-medium text-gray-400 text-left">Період по:</label><input type="date" id="dateTo" class="dark-input mt-1 block w-full p-2"></div></div><div><label for="exportDepartmentFilter" class="block text-sm font-medium text-gray-400 text-left">Відділ:</label><select id="exportDepartmentFilter" class="dark-input mt-1 block w-full p-2"><option value="">Всі відділи</option></select></div><div><label for="exportEmployeeFilter" class="block text-sm font-medium text-gray-400 text-left">Співробітник:</label><select id="exportEmployeeFilter" class="dark-input mt-1 block w-full p-2"><option value="">Всі співробітники</option></select></div></div><div class="items-center mt-6 px-4 py-3 gap-2 flex"><button id="generateExportBtn" class="w-full px-4 py-2 bg-teal-600 text-white rounded-md shadow-sm hover:bg-teal-700">Експорт в Excel</button><button class="cancel-btn w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Скасувати</button></div></div></div>
+    <div id="scheduleManagerModal" class="modal-overlay modal-overlay-fade hidden z-20"><div class="relative p-6 border border-gray-700 w-full max-w-4xl shadow-lg rounded-md bg-gray-800 modal-content-flip"><span class="modal-close-btn">×</span><h3 class="text-lg leading-6 font-medium text-white mb-4">Керування графіками роботи</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="p-4 border border-gray-700 rounded-lg"> <h4 class="font-semibold mb-3">Створити новий графік</h4> <input type="text" id="scheduleName" placeholder="Назва графіка (напр. 5-денка)" class="dark-input w-full p-2 mb-3"> <div id="weekdays" class="flex flex-wrap gap-2 justify-center mb-3"></div> <button id="saveScheduleBtn" class="w-full p-2 bg-blue-600 text-white rounded-md">Зберегти графік</button></div><div class="p-4 border border-gray-700 rounded-lg"><h4 class="font-semibold mb-3">Існуючі графіки</h4><div id="schedulesGrid" class="grid grid-cols-1 gap-2 overflow-y-auto max-h-60 p-1 -mx-1"></div></div></div><button class="cancel-btn mt-6 w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Закрити</button></div></div>
+    <div id="rolesManagerModal" class="modal-overlay modal-overlay-fade hidden z-20"><div class="relative p-6 border border-gray-700 w-full max-w-6xl shadow-lg rounded-md bg-gray-800 max-h-[90vh] flex flex-col modal-content-flip"><span class="modal-close-btn">×</span><h3 class="text-lg leading-6 font-medium text-white mb-4">Керування ролями доступу</h3><div class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-grow overflow-y-auto"><div class="col-span-1 border-r border-gray-700 pr-4"><h4 class="font-semibold mb-3">Ролі</h4><div id="rolesList" class="space-y-2"></div><button id="addNewRoleBtn" class="mt-4 w-full p-2 bg-green-600 text-white rounded-md hover:bg-green-700">Створити нову роль</button></div><div id="roleEditor" class="col-span-2 hidden"><h4 class="font-semibold mb-3">Налаштування ролі "<span id="editingRoleName"></span>"</h4><div class="mb-4"><label for="roleNameInput" class="block text-sm font-medium text-gray-400">Назва ролі</label><input type="text" id="roleNameInput" class="dark-input mt-1"></div><div class="space-y-3"><h5 class="font-medium text-gray-300">Дозволи:</h5><div id="permissionsList"></div></div><div class="mt-6 flex gap-4"><button id="saveRoleBtn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Зберегти зміни</button><button id="deleteRoleBtn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Видалити роль</button></div></div></div><button class="cancel-btn mt-6 w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Закрити</button></div></div>
+    <div id="userAccessModal" class="modal-overlay modal-overlay-fade hidden z-20"><div class="relative p-6 border border-gray-700 w-full max-w-4xl shadow-lg rounded-md bg-gray-800 max-h-[90vh] flex flex-col modal-content-flip"><span class="modal-close-btn">×</span><h3 class="text-lg leading-6 font-medium text-white mb-4">Керування доступом до компанії</h3><div class="flex-grow overflow-y-auto mb-6 pr-2"><h4 class="font-semibold mb-3 text-gray-300">Користувачі з доступом</h4><div id="userList" class="space-y-3"></div></div>
+        <div id="addUserSection" class="mt-auto pt-4 border-t border-gray-700">
+            <h4 class="font-semibold mb-3 text-gray-300">Додати нового користувача</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                <div class="sm:col-span-1">
+                    <label for="newUserEmail" class="block text-sm font-medium text-gray-400 mb-1">Email користувача</label>
+                    <input type="email" id="newUserEmail" placeholder="user@example.com" class="dark-input">
+                </div>
+                <div class="sm:col-span-1">
+                    <label for="newUserPassword" class="block text-sm font-medium text-gray-400 mb-1">Пароль (мін. 6 символів)</label>
+                    <input type="password" id="newUserPassword" placeholder="Встановіть пароль" class="dark-input">
+                </div>
+                <div class="lg:col-span-1">
+                    <label for="linkEmployeeSelect" class="block text-sm font-medium text-gray-400 mb-1">Прив'язати до співробітника</label>
+                    <select id="linkEmployeeSelect" class="dark-input p-2 h-[42px]"></select>
+                </div>
+                <div class="sm:col-span-1">
+                    <label for="newUserRole" class="block text-sm font-medium text-gray-400 mb-1">Роль</label>
+                    <select id="newUserRole" class="dark-input p-2 h-[42px]"></select>
+                </div>
+            </div>
+             <button id="addUserBtn" class="mt-4 w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 whitespace-nowrap h-[42px]">Додати користувача</button>
+            <p id="addUserError" class="text-red-400 text-sm mt-2 h-4"></p>
+        </div>
+        
+        <!-- Нова секція для копіювання прав власника -->
+        <div id="copyOwnerPermissionsSection" class="mt-6 pt-4 border-t border-gray-700">
+            <h4 class="font-semibold mb-3 text-gray-300">Копіювання прав ролі для власника</h4>
+            <p class="text-sm text-gray-400 mb-4">Оберіть роль, права якої потрібно скопіювати для власника:</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+                <div class="sm:col-span-1">
+                    <label for="copyPermissionsRoleSelect" class="block text-sm font-medium text-gray-400 mb-1">Роль</label>
+                    <select id="copyPermissionsRoleSelect" class="dark-input p-2 h-[42px]">
+                        <option value="">-- Оберіть роль --</option>
+                    </select>
+                </div>
+                <div class="sm:col-span-1">
+                    <button id="copyOwnerPermissionsBtn" class="w-full px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 h-[42px] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        Копіювати права ролі для власника
+                    </button>
+                </div>
+                <div class="sm:col-span-1">
+                    <p id="copyPermissionsStatus" class="text-sm text-gray-400 h-[42px] flex items-center"></p>
+                </div>
+            </div>
+            
+            <!-- Секція для відображення прав обраної ролі -->
+            <div id="selectedRolePermissionsInfo" class="mt-4 p-3 bg-gray-700 rounded-md hidden">
+                <h5 class="text-sm font-medium text-gray-300 mb-2">Права обраної ролі:</h5>
+                <div id="selectedRolePermissionsList" class="text-xs text-gray-400 space-y-1 max-h-32 overflow-y-auto"></div>
+            </div>
+        </div>
+        <button class="cancel-btn mt-6 w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Закрити</button></div></div>
+    <div id="kpiManagerModal" class="modal-overlay modal-overlay-fade hidden z-20"><div class="relative p-6 border border-gray-700 w-full max-w-7xl shadow-lg rounded-md bg-gray-800 max-h-[90vh] flex flex-col modal-content-flip"><span class="modal-close-btn">×</span><h3 class="text-lg leading-6 font-medium text-white mb-4">Конструктор KPI</h3><div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-end"><div class="flex items-center gap-4"> <button id="kpiPrevMonth" class="px-3 py-2 bg-gray-700 rounded-md hover:bg-gray-600">←</button> <div id="kpiCurrentMonth" class="text-lg font-semibold text-gray-300 w-48 text-center"></div> <button id="kpiNextMonth" class="px-3 py-2 bg-gray-700 rounded-md hover:bg-gray-600">→</button></div><div><label for="kpiPositionSelect" class="block text-sm font-medium text-gray-400">Оберіть посаду:</label><select id="kpiPositionSelect" class="dark-input mt-1 block w-full p-2"></select></div></div><div id="kpiSettingsContainer" class="hidden overflow-y-auto flex-grow"><div id="kpiCopyContainer" class="mb-4"><button id="copyKpiBtn" class="w-full p-2 text-sm bg-blue-800 text-blue-200 rounded-md hover:bg-blue-700">Копіювати налаштування з попереднього місяця</button></div><div id="kpiSettingsForm" class="space-y-6 pr-2"><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="p-4 border border-gray-700 rounded-lg space-y-4"><h4 class="font-semibold">Основні налаштування ЗП</h4><div><label class="block text-sm">Базова ставка (ЗП), грн</label><input type="number" id="kpiBaseSalary" class="kpi-input" placeholder="8000"></div><div><label class="block text-sm mt-4">База для розрахунку премії, грн</label><input type="number" id="kpiPremiumBase" class="kpi-input" placeholder="18000"></div><div id="kpiCategoriesContainer"><h5 class="font-medium mt-4">Вага KPI, % <span id="kpiWeightSum" class="ml-2 font-normal text-sm"></span></h5></div><button id="addKpiCategoryBtn" class="w-full mt-2 text-sm p-2 bg-gray-700 hover:bg-gray-600 rounded-md">Додати KPI</button></div><div class="p-4 border border-gray-700 rounded-lg space-y-4"><h4 class="font-semibold">Коефіцієнти фокусних задач</h4><div class="grid grid-cols-3 gap-2"><div><label class="block text-sm">0 задач</label><input type="number" step="0.01" id="kpiFocus0" class="kpi-input" placeholder="0.5"></div><div><label class="block text-sm">1 задача</label><input type="number" step="0.01" id="kpiFocus1" class="kpi-input" placeholder="0.75"></div><div><label class="block text-sm">2+ задачі</label><input type="number" step="0.1" id="kpiFocus2" class="kpi-input" placeholder="1.1"></div></div></div></div><div class="p-4 border border-gray-700 rounded-lg space-y-4"><div id="bonusesContainer"><h4 class="font-semibold">Додаткові бонуси</h4></div><button id="addBonusBtn" class="w-full mt-2 text-sm p-2 bg-gray-700 hover:bg-gray-600 rounded-md">Додати бонус</button></div><div class="p-4 border border-gray-700 rounded-lg space-y-4"><h4 class="font-semibold">Податки</h4><div><label class="block text-sm">Сума податків, грн</label><input type="number" id="kpiTaxes" class="kpi-input" placeholder="4600"></div></div></div><div id="kpiSaveContainer" class="pt-6 mt-auto"><button id="saveKpiSettingsBtn" class="w-full p-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Зберегти налаштування KPI</button></div></div></div></div>
+    <div id="settingsWindowModal" class="modal-overlay modal-overlay-fade hidden z-20">
+        <div id="settingsWindowContent" class="relative p-6 border border-gray-700 w-full max-w-2xl shadow-lg rounded-md bg-gray-800 max-h-[90vh] flex flex-col modal-content-flip">
+            <span id="closeSettingsWindowButton" class="modal-close-btn">×</span>
+            <h3 class="text-lg leading-6 font-medium text-white mb-4">Налаштування компанії</h3>
+            <div class="overflow-y-auto flex-grow pr-2 space-y-6">
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Персонал</h4>
+                    <div class="space-y-3">
+                        <div class="manager-card-setting-item">
+                            <div class="flex items-center gap-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                <div><h5 class="font-semibold text-white">Співробітники</h5><p class="text-sm text-gray-400">Додавання та редагування працівників.</p></div>
+                            </div>
+                            <button class="w-full mt-2 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm" data-modal-target="employeeManagerModal">Керувати</button>
+                        </div>
+                        <div class="manager-card-setting-item">
+                            <div class="flex items-center gap-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 4h5m-5 4h5m-5-8h5m-5 4h5" /></svg>
+                                <div><h5 class="font-semibold text-white">Відділи та графіки</h5><p class="text-sm text-gray-400">Створення відділів та робочих графіків.</p></div>
+                            </div>
+                            <div class="flex gap-2 mt-2">
+                                <button class="w-full px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm" data-modal-target="departmentManagerModal">Відділи</button>
+                                <button class="w-full px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm" data-modal-target="scheduleManagerModal" data-init-func="setupScheduleManager">Графіки</button>
+                            </div>
+                        </div>
+                        <div class="manager-card-setting-item">
+                            <div class="flex items-center gap-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 012-2h2a2 2 0 012 2v1m-4 0h4" /></svg>
+                                <div><h5 class="font-semibold text-white">Посади</h5><p class="text-sm text-gray-400">Налаштування посад у компанії.</p></div>
+                            </div>
+                            <button class="w-full mt-2 px-3 py-1 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 text-sm" data-modal-target="positionManagerModal">Керувати</button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Адміністрування</h4>
+                    <div class="space-y-3">
+                        <div class="manager-card-setting-item">
+                            <div class="flex items-center gap-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197m0 0A10.004 10.004 0 003 21m12 0v-1a6 6 0 00-9-5.197" /></svg>
+                                <div><h5 class="font-semibold text-white">Доступ користувачів</h5><p class="text-sm text-gray-400">Керування правами та додавання нових користувачів.</p></div>
+                            </div>
+                            <div class="flex gap-2 mt-2">
+                                <button class="w-full px-3 py-1 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm" data-modal-target="userAccessModal" data-init-func="setupUserAccessManager">Користувачі</button>
+                                <button class="w-full px-3 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm" data-modal-target="rolesManagerModal" data-init-func="openRolesManager">Ролі</button>
+                            </div>
+                        </div>
+                        <div class="manager-card-setting-item">
+                            <div class="flex items-center gap-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                <div><h5 class="font-semibold text-white">Конструктор KPI</h5><p class="text-sm text-gray-400">Налаштування шаблонів розрахунку ЗП.</p></div>
+                            </div>
+                            <button class="w-full mt-2 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm" data-modal-target="kpiManagerModal" data-init-func="openKpiConstructorWrapper">Налаштувати</button>
+                        </div>
+                        <div class="manager-card-setting-item hidden" id="recalculateSegmentContainer">
+                            <div class="flex items-center gap-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a2 2 0 01-2-2V7a2 2 0 012-2h4l2-2h2a2 2 0 012 2z" />
+                                </svg>
+                                <div>
+                                    <h5 class="font-semibold text-white">Сегментація клієнтів</h5>
+                                    <p class="text-sm text-gray-400">Запуск ручного перерахунку RFM-сегментів для клієнтської бази.</p>
+                                </div>
+                            </div>
+                            <button id="recalculateSegmentBtn" class="w-full mt-2 px-3 py-1 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 text-sm">
+                                Перерахувати сегменти
+                                <span id="recalculateSegmentLoader" class="loader hidden ml-2" style="width: 16px; height: 16px; border-width: 2px;"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="cancel-btn mt-6 w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Закрити</button>
+        </div>
+    </div>
+    <div id="employeeEditorModal" class="modal-overlay modal-overlay-fade hidden z-30"><div class="relative p-5 border border-gray-700 w-full max-w-sm shadow-lg rounded-md bg-gray-800 modal-content-flip"><span class="modal-close-btn">×</span><h3 id="employeeEditorTitle" class="text-lg leading-6 font-medium text-white mb-4">Новий співробітник</h3><div class="flex flex-col items-center mb-4"><img id="employeeAvatarPreview" src="https://via.placeholder.com/96" class="w-24 h-24 rounded-full object-cover mb-2 border-2 border-gray-600"><input type="file" id="avatarUpload" class="hidden" accept="image/*"><button id="uploadAvatarBtn" class="text-sm text-blue-400 hover:underline">Змінити фото</button></div><div class="text-left space-y-4"><input id="newEmployeeName" type="text" placeholder="ПІБ співробітника" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none"><div><label for="newEmployeeDeptSelect" class="block text-sm font-medium text-gray-400 text-left mb-1">Відділ</label><select id="newEmployeeDeptSelect" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="">-- Оберіть відділ --</option></select></div><div><label for="newEmployeePositionSelect" class="block text-sm font-medium text-gray-400 text-left mb-1">Посада</label><select id="newEmployeePositionSelect" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="">-- Оберіть посаду --</option></select></div></div><div class="items-center mt-4 px-4 py-3 gap-2 flex"><button id="saveEmployeeBtn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700">Зберегти</button><button class="cancel-btn w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Скасувати</button></div></div></div>
+    <div id="departmentEditorModal" class="modal-overlay modal-overlay-fade hidden z-30"><div class="relative p-5 border border-gray-700 w-full max-w-sm shadow-lg rounded-md bg-gray-800 modal-content-flip"><span class="modal-close-btn">×</span><h3 id="departmentEditorTitle" class="text-lg leading-6 font-medium text-white mb-4">Редагувати відділ</h3><div class="space-y-4"><input id="editDepartmentName" type="text" placeholder="Назва відділу" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none"><div><label for="departmentManagerSelect" class="block text-sm font-medium text-gray-400 text-left mb-1">Керівник відділу</label><select id="departmentManagerSelect" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="">-- Без керівника --</option></select></div><div><label for="departmentScheduleSelect" class="block text-sm font-medium text-gray-400 text-left mb-1">Графік роботи</label><select id="departmentScheduleSelect" class="dark-input w-full p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="">Без графіка</option></select></div></div><div class="items-center mt-4 px-4 py-3 gap-2 flex"><button id="saveDepartmentBtn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700">Зберегти</button><button class="cancel-btn w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Скасувати</button></div></div></div>
+    <div id="positionEditorModal" class="modal-overlay modal-overlay-fade hidden z-30"><div class="relative p-5 border border-gray-700 w-full max-w-sm shadow-lg rounded-md bg-gray-800 modal-content-flip"><span class="modal-close-btn">×</span><h3 id="positionEditorTitle" class="text-lg leading-6 font-medium text-white mb-4">Редагувати посаду</h3><input id="editPositionName" type="text" placeholder="Назва посади" class="dark-input w-full p-3 mb-4 focus:ring-2 focus:ring-indigo-500 focus:outline-none"><div class="items-center mt-4 px-4 py-3 gap-2 flex"><button id="savePositionBtn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700">Зберегти</button><button class="cancel-btn w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Скасувати</button></div></div></div>
+
+    <!-- Модальне вікно для створення/перегляду заявки на відпустку -->
+    <div id="vacationRequestModal" class="modal-overlay modal-overlay-fade hidden z-30"><div class="relative p-6 border border-gray-700 w-full max-w-lg shadow-lg rounded-md bg-gray-800 max-h-[90vh] flex flex-col modal-content-flip"><span class="modal-close-btn">×</span><h3 id="vacationRequestModalTitle" class="text-lg leading-6 font-medium text-white mb-6">Запит на відпустку</h3><div class="space-y-4 flex-grow overflow-y-auto pr-2"><div id="vacReqEmployeeSelectContainer" class="hidden"><label for="vacReqEmployeeSelectForManager" class="block text-sm font-medium text-gray-400 mb-1">Співробітник (для менеджера)</label><select id="vacReqEmployeeSelectForManager" class="dark-input w-full p-2"></select></div><div><label for="vacReqEmployeeName" class="block text-sm font-medium text-gray-400 mb-1">Співробітник</label><input type="text" id="vacReqEmployeeName" class="dark-input w-full p-2 bg-gray-700" readonly></div><div><label for="vacReqDepartmentName" class="block text-sm font-medium text-gray-400 mb-1">Відділ</label><input type="text" id="vacReqDepartmentName" class="dark-input w-full p-2 bg-gray-700" readonly></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label for="vacReqStartDate" class="block text-sm font-medium text-gray-400 mb-1">Дата початку</label><input type="date" id="vacReqStartDate" class="dark-input w-full p-2"></div><div><label for="vacReqEndDate" class="block text-sm font-medium text-gray-400 mb-1">Дата закінчення</label><input type="date" id="vacReqEndDate" class="dark-input w-full p-2"></div></div><div><label for="vacReqComment" class="block text-sm font-medium text-gray-400 mb-1">Коментар (необов'язково)</label><textarea id="vacReqComment" rows="3" class="dark-input w-full p-2" placeholder="Причина, побажання тощо..."></textarea></div> <div id="vacReqStatusInfo" class="text-sm text-gray-400 hidden">Статус: <span id="vacReqStatusText" class="font-semibold"></span> </div> <div id="vacReqDecisionCommentInfo" class="text-sm text-gray-400 hidden">Коментар рішення: <span id="vacReqDecisionCommentText" class="font-semibold"></span> </div></div><div id="vacationRequestModalActions" class="mt-6 pt-4 border-t border-gray-600 flex flex-wrap justify-end gap-3"><button id="submitVacationRequestBtn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Відправити</button><button id="approveVacationRequestBtn" class="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 hidden">Погодити</button><button id="denyVacationRequestBtn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 hidden">Відхилити</button><button type="button" class="cancel-btn px-4 py-2 bg-gray-600 text-gray-200 rounded-md hover:bg-gray-500">Скасувати</button></div></div></div>
+
+    <!-- Модальне вікно попередження про конфлікт відпусток -->
+    <div id="vacationConflictModal" class="modal-overlay modal-overlay-fade hidden z-40"><div class="relative p-5 border border-gray-700 w-full max-w-md shadow-lg rounded-md bg-gray-800 modal-content-flip"><h3 class="text-lg font-medium text-yellow-400 mb-2">Увага! Конфлікт відпусток!</h3><p id="vacationConflictMessage" class="text-sm text-gray-300 mb-6"></p><div class="items-center mt-4 px-4 py-3 gap-2 flex"><button id="approveAnywayConflictBtn" class="w-full px-4 py-2 bg-yellow-600 text-black rounded-md shadow-sm hover:bg-yellow-500">Все одно погодити</button><button id="cancelConflictBtn" class="w-full px-4 py-2 bg-gray-600 text-gray-200 rounded-md shadow-sm hover:bg-gray-500">Скасувати</button></div></div></div>
+
+    <div id="toast-container" class="z-[60]"></div>
+
+    <script src="js/orgchart.js?v=20240610"></script>
+    <script type="module" src="js/main.js?v=20240610"></script>
+    <script type="module" src="js/competencies.js?v=20240610"></script>
+    <script type="module" src="js/dashboard.js?v=20240610"></script>
+    <script type="module" src="js/firebase.js?v=20240610"></script>
+    <script type="module" src="js/focus.js?v=20240610"></script>
+    <script type="module" src="js/reports.js?v=20240610"></script>
+    <script type="module" src="js/ui.js?v=20240610"></script>
+    <script type="module" src="js/salesAssistant.js?v=20240610"></script>
+    <script type="module" src="js/smartDay.js?v=20240610"></script>
+
+    <!-- ВРЕМЕННО: Генерация демо-оценок для всех сотрудников -->
+    <script>
+    window.generateDemoAssessments = async function() {
+        const period = '2025Q2'; // или вычислить текущий
+        for (const emp of allEmployees) {
+            const assessmentRef = firebase.doc(firebase.db, "companies", currentCompanyId, "competencyAssessments", `${emp.id}_${period}`);
+            await firebase.setDoc(assessmentRef, {
+                employeeId: emp.id,
+                period,
+                scores: {
+                    'Лідерство': Math.random() * 2 + 3,
+                    'Стратегічне мислення': Math.random() * 2 + 3,
+                    'Комунікація': Math.random() * 2 + 3,
+                    'Технічна експертиза': Math.random() * 2 + 3,
+                },
+                createdBy: currentUserId,
+                createdAt: new Date()
+            });
+        }
+        alert('Демо-оцінки згенеровано!');
+    }
+    </script>
+
+    <!-- Модальное окно для комментария при відхіленні заявки -->
+    <div id="vacationDenyCommentModal" class="modal hidden">
+      <div class="modal-content-flip">
+        <h2>Відхилення заявки</h2>
+        <label for="vacationDenyCommentInput">Введіть коментар для відхилення заявки <span style="color:red">*</span>:</label>
+        <textarea id="vacationDenyCommentInput" rows="3" style="width:100%" required></textarea>
+        <div class="modal-actions" style="margin-top:1em; display:flex; gap:1em; justify-content:flex-end;">
+          <button id="vacationDenyCommentOkBtn" class="btn btn-danger">OK</button>
+          <button id="vacationDenyCommentCancelBtn" class="btn btn-secondary">Скасувати</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overlay для модального вікна помічника зростання -->
+    <div id="growthAssistantOverlay" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center">
+      <div id="growthAssistantModal" class="relative bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-md mx-auto animate-fade-in">
+        <button id="closeAssistantBtn" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors text-2xl">&times;</button>
+        <div class="flex items-center gap-4 mb-4">
+          <div class="w-16 h-16 flex-shrink-0">
+            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><path fill="#4F46E5" d="M49.4,-44.6C60.9,-28.9,64.9,-4.5,60.8,16.7C56.7,37.9,44.5,55.9,27.2,64.5C9.9,73.1,-12.4,72.3,-30,62.8C-47.6,53.2,-60.5,34.9,-64.1,14.8C-67.8,-5.3,-62.2,-27.2,-49.5,-43.3C-36.8,-59.4,-18.4,-69.7,1.8,-71.2C22,-72.6,44,-64.6,49.4,-44.6Z" transform="translate(100 100)" /><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="100" font-family="Inter, sans-serif" font-weight="bold">A</text></svg>
+          </div>
+          <div>
+            <h4 id="assistantTitle" class="text-xl font-bold text-white">Помічник Зростання</h4>
+            <p class="text-sm text-gray-400">Поради для розвитку компетенції</p>
+          </div>
+        </div>
+        <div id="assistantContent" class="mt-4 pt-4 border-t border-gray-700 text-sm space-y-3 max-h-60 overflow-y-auto pr-2"></div>
+      </div>
+    </div>
+
+    <!-- Модальне вікно для додавання продажів -->
+    <div id="addSalesModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 hidden">
+      <div class="bg-gray-800 rounded-xl shadow-lg p-6 w-full max-w-2xl relative">
+        <button id="closeAddSalesModal" class="absolute top-2 right-2 text-gray-400 hover:text-white text-2xl">&times;</button>
+        <h2 class="text-2xl font-bold text-white mb-4">Додати продажі по співробітниках</h2>
+        <div class="mb-4 flex gap-4 flex-wrap">
+          <div>
+            <label for="salesMonthSelect" class="block text-sm text-gray-400 mb-1">Місяць:</label>
+            <input type="month" id="salesMonthSelect" class="dark-input p-2">
+          </div>
+          <div>
+            <label for="salesDepartmentSelect" class="block text-sm text-gray-400 mb-1">Відділ:</label>
+            <select id="salesDepartmentSelect" class="dark-input p-2"></select>
+          </div>
+        </div>
+        <div class="overflow-x-auto mb-4">
+          <table class="min-w-full text-sm text-left border border-gray-700 rounded-lg">
+            <thead>
+              <tr class="bg-gray-700 text-gray-300">
+                <th class="py-2 px-2">Співробітник</th>
+                <th class="py-2 px-2">Сума продажів, грн</th>
+              </tr>
+            </thead>
+            <tbody id="salesEmployeesTableBody">
+              <!-- Динамічно -->
+            </tbody>
+          </table>
+        </div>
+        <div class="flex justify-end gap-4">
+          <button id="saveSalesBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded">Зберегти</button>
+        </div>
+      </div>
+    </div>
+    <!-- Кнопка відкриття модального вікна на вкладці Звіти -->
+ 
+    <div id="salesAssistantPage" class="page-transition hidden w-full max-w-7xl flex flex-col gap-8 py-8 mx-auto"></div>
+
+    <script src="модуль помічник продажу/alerts.js"></script>
+</body>
+</html>
