@@ -442,14 +442,17 @@ function calculateManagerKpi(manager, calculationMaps, selectedPeriod) {
         return saleDate >= periodStart && saleDate <= periodEnd;
     });
 
-    console.log(`Менеджер ${manager.name}: знайдено ${salesForManager.length} продаж за ${selectedPeriod}`);
+    console.log(`Менеджер ${manager.name}: знайдено ${salesForManager.length} записів продаж за ${selectedPeriod}`);
 
-    // 3. Отгруженные клиенты и выручка
+    // 3. Отгруженные клиенты, выручка и группировка чеков
     const shippedClientsSet = new Set();
+    const checksMap = new Map(); // Ключ: "клиент_код+дата", значение: сумма чека
     let totalRevenue = 0;
     
     salesForManager.forEach(sale => {
         const clientCode = sale['Клиент.Код'] || sale['Клієнт.Код'];
+        const saleDate = sale['Дата'];
+        
         if (clientCode) {
             shippedClientsSet.add(clientCode);
         }
@@ -460,11 +463,21 @@ function calculateManagerKpi(manager, calculationMaps, selectedPeriod) {
             revenue = parseFloat(revenue.replace(/\s/g, '').replace(',', '.')) || 0;
         }
         totalRevenue += revenue;
+        
+        // Группируем по чекам (клиент + дата)
+        if (clientCode && saleDate) {
+            const checkKey = `${clientCode}_${saleDate}`;
+            if (!checksMap.has(checkKey)) {
+                checksMap.set(checkKey, 0);
+            }
+            checksMap.set(checkKey, checksMap.get(checkKey) + revenue);
+        }
     });
 
     const shippedClients = shippedClientsSet.size;
+    const totalChecks = checksMap.size; // Количество уникальных чеков
     const shipmentPercentage = totalClients > 0 ? (shippedClients / totalClients) * 100 : 0;
-    const avgCheck = shippedClients > 0 ? totalRevenue / salesForManager.length : 0;
+    const avgCheck = totalChecks > 0 ? totalRevenue / totalChecks : 0; // Правильный расчет среднего чека
     const ltv = totalClients > 0 ? totalRevenue / totalClients : 0;
 
     // 4. Фокусные задачи за выбранный период
@@ -526,10 +539,18 @@ function calculateManagerKpi(manager, calculationMaps, selectedPeriod) {
         focusTaskAmount,
         focusClients,
         focusBasePercentage,
-        totalRevenue
+        totalRevenue,
+        totalChecks // Добавляем для отладки
     };
 
-    console.log(`KPI для ${manager.name}:`, result);
+    console.log(`KPI для ${manager.name}:`, {
+        ...result,
+        debug: {
+            totalChecks,
+            salesRecords: salesForManager.length,
+            avgCheckCalculation: `${totalRevenue.toFixed(2)} / ${totalChecks} = ${avgCheck.toFixed(2)}`
+        }
+    });
     return result;
 }
 
@@ -551,11 +572,12 @@ function renderDepartmentSection(departmentData) {
         acc.shippedClients += mgr.kpi.shippedClients;
         acc.totalRevenue += mgr.kpi.totalRevenue;
         acc.focusTaskAmount += mgr.kpi.focusTaskAmount;
+        acc.totalChecks += mgr.kpi.totalChecks || 0; // Добавляем количество чеков
         return acc;
-    }, { totalClients: 0, shippedClients: 0, totalRevenue: 0, focusTaskAmount: 0 });
+    }, { totalClients: 0, shippedClients: 0, totalRevenue: 0, focusTaskAmount: 0, totalChecks: 0 });
 
     const deptShipmentPercentage = summary.totalClients > 0 ? (summary.shippedClients / summary.totalClients) * 100 : 0;
-    const deptAvgCheck = summary.shippedClients > 0 ? summary.totalRevenue / summary.shippedClients : 0;
+    const deptAvgCheck = summary.totalChecks > 0 ? summary.totalRevenue / summary.totalChecks : 0; // Правильный расчет для отдела
 
     // --- HTML-структура ---
     section.innerHTML = `
