@@ -259,11 +259,20 @@ function renderDepartmentFilter(filterContainer) {
 
     let filterHtml = `
         <div>
-            <label for="dept-dash-filter" class="block text-sm font-medium mb-1 text-gray-200">Фільтр по відділах:</label>
-            <select id="dept-dash-filter" multiple class="dark-input bg-gray-700 text-gray-200 border-gray-600 h-32">
-                ${departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
-            </select>
-            <div class="mt-1 text-xs text-gray-400">Утримуйте Ctrl/Cmd для вибору декількох відділів</div>
+            <label class="block text-sm font-medium mb-2 text-gray-200">Фільтр по відділах:</label>
+            <div id="dept-checkboxes" class="space-y-2 max-h-32 overflow-y-auto bg-gray-800 p-3 rounded border border-gray-600">
+                <label class="flex items-center text-gray-200">
+                    <input type="checkbox" id="select-all-depts" class="mr-2"> 
+                    <span class="font-medium">Всі відділи</span>
+                </label>
+                <hr class="border-gray-600">
+                ${departments.map(d => `
+                    <label class="flex items-center text-gray-200">
+                        <input type="checkbox" value="${d.id}" class="dept-checkbox mr-2"> 
+                        ${d.name}
+                    </label>
+                `).join('')}
+            </div>
         </div>
         <div>
             <label for="period-filter" class="block text-sm font-medium mb-1 text-gray-200">Період аналізу:</label>
@@ -274,18 +283,39 @@ function renderDepartmentFilter(filterContainer) {
     `;
     filterContainer.innerHTML = filterHtml;
 
-    const deptFilterSelect = filterContainer.querySelector('#dept-dash-filter');
     const periodFilterSelect = filterContainer.querySelector('#period-filter');
+    const selectAllCheckbox = filterContainer.querySelector('#select-all-depts');
+    const deptCheckboxes = filterContainer.querySelectorAll('.dept-checkbox');
     
     const updateReport = () => {
-        const selectedDeptIds = Array.from(deptFilterSelect.selectedOptions).map(option => option.value);
+        const selectedDeptIds = Array.from(deptCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
         const selectedPeriod = periodFilterSelect.value;
         const contentContainer = document.getElementById('department-dashboard-content');
         renderReport(contentContainer, selectedDeptIds, selectedPeriod);
     };
 
-    deptFilterSelect.addEventListener('change', updateReport);
+    // Обработчик "Всі відділи"
+    selectAllCheckbox.addEventListener('change', (e) => {
+        deptCheckboxes.forEach(cb => cb.checked = e.target.checked);
+        updateReport();
+    });
+
+    // Обработчики отдельных чекбоксов
+    deptCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            // Обновляем состояние "Всі відділи"
+            selectAllCheckbox.checked = Array.from(deptCheckboxes).every(checkbox => checkbox.checked);
+            updateReport();
+        });
+    });
+
     periodFilterSelect.addEventListener('change', updateReport);
+    
+    // По умолчанию выбираем все отделы
+    selectAllCheckbox.checked = true;
+    deptCheckboxes.forEach(cb => cb.checked = true);
 }
 
 /**
@@ -480,43 +510,42 @@ function calculateManagerKpi(manager, calculationMaps, selectedPeriod) {
     const avgCheck = totalChecks > 0 ? totalRevenue / totalChecks : 0; // Правильный расчет среднего чека
     const ltv = totalClients > 0 ? totalRevenue / totalClients : 0;
 
-    // 4. Фокусные задачи за выбранный период
+    // 4. Фокусные задачи - получаем клиентов из clientsSnapshot
     const [year, month] = selectedPeriod.split('-').map(Number);
     const periodStart = new Date(year, month - 1, 1);
     const periodEnd = new Date(year, month, 0);
     
+    // Получаем все фокусные задачи менеджера (активные и в период действия)
     const managerFocusTasks = focusTasks.filter(task => {
-        if (task.managerId !== manager.id) return false;
-        if (task.status !== 'completed' && task.status !== 'завершено') return false;
+        // Проверяем, что задача относится к менеджеру через clientsSnapshot
+        if (!task.clientsSnapshot || !Array.isArray(task.clientsSnapshot)) return false;
         
-        // Фильтрация по периоду
-        const taskDate = new Date(task.completedDate || task.dateCompleted || task.date);
-        return taskDate >= periodStart && taskDate <= periodEnd;
+        // Проверяем период действия задачи
+        const taskStart = new Date(task.periodFrom);
+        const taskEnd = new Date(task.periodTo);
+        return taskStart <= periodEnd && taskEnd >= periodStart;
     });
     
-    const focusTaskAmount = managerFocusTasks.reduce((sum, task) => {
-        const taskSum = parseFloat(task.sum || task.amount || 0);
-        return sum + (isNaN(taskSum) ? 0 : taskSum);
-    }, 0);
-    
-    // Получаем коды клиентов из фокусных задач
+    // Собираем всех фокусных клиентов менеджера из clientsSnapshot
     const focusClientCodes = new Set();
     managerFocusTasks.forEach(task => {
-        if (task.clientId || task.clientCode) {
-            focusClientCodes.add(task.clientId || task.clientCode);
-        }
+        task.clientsSnapshot.forEach(client => {
+            if (client.manager === manager.name && client.code) {
+                focusClientCodes.add(client.code);
+            }
+        });
     });
     
     const focusClients = focusClientCodes.size;
     const focusBasePercentage = totalClients > 0 ? (focusClients / totalClients) * 100 : 0;
     
-    // 5. Расчет фактических показателей по фокусным клиентам
+    // 5. Расчет фактических показателей по фокусным клиентам за период
     const focusClientCodesArray = Array.from(focusClientCodes);
     const focusSalesForPeriod = masterData.filter(sale => {
         const clientCode = sale['Клиент.Код'] || sale['Клієнт.Код'];
         if (!focusClientCodesArray.includes(clientCode)) return false;
         
-        // Фильтрация по периоду
+        // Фильтрация по выбранному периоду анализа
         const saleDate = new Date(sale['Дата']);
         return saleDate >= periodStart && saleDate <= periodEnd;
     });
@@ -539,7 +568,12 @@ function calculateManagerKpi(manager, calculationMaps, selectedPeriod) {
     });
     
     const shippedFocusClients = shippedFocusClientsSet.size;
-    const focusShipmentPercentage = focusClients > 0 ? (shippedFocusClients / focusClients) * 100 : 0;
+    
+    // Плановая сумма фокусных задач - берем из самих задач
+    const focusTaskAmount = managerFocusTasks.reduce((sum, task) => {
+        const taskSum = parseFloat(task.sum || task.amount || 0);
+        return sum + (isNaN(taskSum) ? 0 : taskSum);
+    }, 0);
     
     // 5. Покрытие групп товаров
     let totalCoverageSum = 0;
@@ -575,7 +609,6 @@ function calculateManagerKpi(manager, calculationMaps, selectedPeriod) {
         totalChecks, // Добавляем для отладки
         // Новые фокусные показатели
         shippedFocusClients,
-        focusShipmentPercentage,
         focusActualRevenue
     };
 
@@ -656,7 +689,6 @@ function renderDepartmentSection(departmentData) {
                   <th class="h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400">К-сть клієнтів фокусу</th>
                   <th class="h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400">% фокусу від бази</th>
                   <th class="h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400">Відгружені фокус</th>
-                  <th class="h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400">% відгрузки фокус</th>
                   <th class="h-12 px-4 text-right align-middle font-medium text-gray-500 dark:text-gray-400">Факт виручка фокус</th>
                 </tr>
               </thead>
@@ -676,7 +708,6 @@ function renderDepartmentSection(departmentData) {
                   <td class="p-4 align-middle text-center">—</td>
                   <td class="p-4 align-middle text-center">—</td>
                   <td class="p-4 align-middle text-center">${summary.shippedFocusClients || 0}</td>
-                  <td class="p-4 align-middle text-center">—</td>
                   <td class="p-4 align-middle text-right">${(summary.focusActualRevenue || 0).toFixed(2)} грн</td>
                 </tr>
               </tfoot>
@@ -738,12 +769,6 @@ function createManagerRowHTML(manager) {
             <td class="p-4 align-middle text-center text-black">${kpi.focusClients}</td>
             <td class="p-4 align-middle text-center text-black">${formatPercentage(kpi.focusBasePercentage)}</td>
             <td class="p-4 align-middle text-center text-black">${kpi.shippedFocusClients || 0}</td>
-            <td class="p-4 align-middle text-center text-black">
-                <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                    <div class="bg-purple-600 h-2.5 rounded-full" style="width: ${Math.min(kpi.focusShipmentPercentage || 0, 100)}%"></div>
-                </div>
-                <span class="text-xs text-black">${formatPercentage(kpi.focusShipmentPercentage || 0)}</span>
-            </td>
             <td class="p-4 align-middle text-right font-semibold text-black">${formatCurrency(kpi.focusActualRevenue || 0)}</td>
         </tr>
     `;
