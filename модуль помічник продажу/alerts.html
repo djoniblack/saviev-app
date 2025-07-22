@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Сигналізація клієнтів</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="bg-gray-900 text-gray-200 min-h-screen flex flex-col justify-start items-center w-full px-2 sm:px-4 md:px-8">
+  <div class="w-full max-w-7xl flex flex-col gap-8 py-8">
+    <!-- Добавлено: обертка для заголовка и кнопки -->
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-3xl font-bold text-white">Сигналізація клієнтів</h1>
+      <a href="../dashboard.html" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition ml-4" target="_blank">
+        Головний дашборд
+      </a>
+    </div>
+    <!-- Фільтри -->
+    <div id="filters" class="mb-6 bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4"></div>
+    <!-- Вкладки/кнопки для типів сигналів -->
+    <div id="signal-tabs" class="mb-4 flex gap-2"></div>
+    <!-- Графік/таблиця сигналів -->
+    <div id="alerts-content" class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4"></div>
+  </div>
+  <script src="alerts.js"></script>
+</body>
+</html> 
