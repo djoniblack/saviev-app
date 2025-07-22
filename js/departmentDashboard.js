@@ -29,6 +29,29 @@ function validateAndDebugData() {
     if (masterData.length > 0) {
         console.log('Приклад записи продаж:', masterData[0]);
         console.log('Поля в записах продаж:', Object.keys(masterData[0]));
+        
+        // Анализ дат продаж
+        const julyDate = new Date('2025-07-01');
+        const beforeJuly = masterData.filter(sale => {
+            const saleDate = new Date(sale['Дата']);
+            return saleDate < julyDate;
+        }).length;
+        const fromJuly = masterData.filter(sale => {
+            const saleDate = new Date(sale['Дата']);
+            return saleDate >= julyDate;
+        }).length;
+        
+        console.log('Розподіл продаж по датах:');
+        console.log('  - До липня 2025:', beforeJuly);
+        console.log('  - З липня 2025:', fromJuly);
+        
+        // Показываем диапазон дат
+        const dates = masterData.map(sale => new Date(sale['Дата'])).filter(date => !isNaN(date));
+        if (dates.length > 0) {
+            const minDate = new Date(Math.min(...dates));
+            const maxDate = new Date(Math.max(...dates));
+            console.log('Діапазон дат продаж:', minDate.toLocaleDateString('uk-UA'), '-', maxDate.toLocaleDateString('uk-UA'));
+        }
     }
     
     // Анализ справочника менеджеров
@@ -95,39 +118,60 @@ async function loadDataForReport() {
     console.log('Завантаження даних для звіту...');
 
     try {
-        // Загружаем данные продаж из двух источников (как в alerts.js)
-        const [dataJulyRes, refRes] = await Promise.all([
-            fetch('https://fastapi.lookfort.com/nomenclature.analysis'),
-            fetch('https://fastapi.lookfort.com/nomenclature.analysis?mode=company_url')
+        // Загружаем данные продаж из двух источников:
+        // 1. API - данные с июля 2025
+        // 2. Файл data.json - данные до июля 2025
+        const [apiDataRes, refRes] = await Promise.all([
+            fetch('https://fastapi.lookfort.com/nomenclature.analysis'), // Данные с июля 2025
+            fetch('https://fastapi.lookfort.com/nomenclature.analysis?mode=company_url') // Справочник клиентов
         ]);
 
         // Проверяем статус ответов
-        if (!dataJulyRes.ok) {
-            throw new Error(`Помилка завантаження даних продаж: ${dataJulyRes.status}`);
+        if (!apiDataRes.ok) {
+            throw new Error(`Помилка завантаження даних продаж з API: ${apiDataRes.status}`);
         }
         if (!refRes.ok) {
             throw new Error(`Помилка завантаження довідника клієнтів: ${refRes.status}`);
         }
 
-        const dataJuly = await dataJulyRes.json();
+        const apiData = await apiDataRes.json(); // Данные с июля 2025
         const refData = await refRes.json();
 
-        // Статические данные до июля 2025
-        let staticData = [];
+        // Статические данные до июля 2025 из файла data.json
+        let staticDataBeforeJuly = [];
         try {
             const staticDataRes = await fetch('модуль помічник продажу/data.json');
             if (staticDataRes.ok) {
-                staticData = await staticDataRes.json();
-                console.log('Завантажено статичних записів продаж:', staticData.length);
+                const allStaticData = await staticDataRes.json();
+                
+                // Фильтруем данные до июля 2025
+                const julyDate = new Date('2025-07-01');
+                staticDataBeforeJuly = allStaticData.filter(sale => {
+                    const saleDate = new Date(sale['Дата']);
+                    return saleDate < julyDate;
+                });
+                
+                console.log('Завантажено записів продаж до липня 2025:', staticDataBeforeJuly.length);
             }
         } catch (error) {
             console.warn('Не вдалося завантажити статичні дані:', error);
-            staticData = [];
+            staticDataBeforeJuly = [];
         }
+
+        // Данные с июля 2025 из API (фильтруем чтобы убедиться)
+        const julyDate = new Date('2025-07-01');
+        const dataFromJuly = apiData.filter(sale => {
+            const saleDate = new Date(sale['Дата']);
+            return saleDate >= julyDate;
+        });
         
-        // Объединяем все данные продаж
-        masterData = staticData.concat(dataJuly);
-        console.log('Завантажено записів продаж:', masterData.length);
+        console.log('Завантажено записів продаж з липня 2025 (API):', dataFromJuly.length);
+        
+        // Объединяем данные: до июля из файла + с июля из API
+        masterData = staticDataBeforeJuly.concat(dataFromJuly);
+        console.log('Загальна кількість записів продаж:', masterData.length);
+        console.log('  - До липня 2025 (файл):', staticDataBeforeJuly.length);
+        console.log('  - З липня 2025 (API):', dataFromJuly.length);
 
         // Создаем справочник ссылок на клиентов
         clientLinks = {};
