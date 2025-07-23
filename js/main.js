@@ -369,6 +369,9 @@ export function hasPermission(permissionKey) {
     return state.currentUserPermissions[permissionKey] === true;
 }
 
+// Делаем функцию доступной глобально для использования в модулях
+window.hasPermission = hasPermission;
+
 
 // =================================================================================
 // --- СЛУХАЧІ FIRESTORE ТА ЗАВАНТАЖЕННЯ ДАНИХ ---

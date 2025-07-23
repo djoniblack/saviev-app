@@ -91,6 +91,27 @@ export const ALL_POSSIBLE_PERMISSIONS = [
     { id: 'focus_manage', label: 'Повне керування фокусними задачами' },
     // --- Доступ до модуля "Створи мій день" ---
     { id: 'smartday_access', label: 'Доступ до модуля "Створи мій день"' },
+    
+    // --- Дебіторська заборгованість ---
+    { id: 'debts_view_page', label: 'Доступ до модуля "Дебіторка"' },
+    { id: 'debts_view_all', label: 'Перегляд всіх заборгованостей компанії' },
+    { id: 'debts_view_department', label: 'Перегляд заборгованостей свого відділу' },
+    { id: 'debts_view_own', label: 'Перегляд заборгованостей власних клієнтів' },
+    { id: 'debts_manage_comments', label: 'Додавання коментарів по заборгованостях' },
+    { id: 'debts_manage_forecasts', label: 'Створення прогнозів оплат' },
+    { id: 'debts_export', label: 'Експорт звіту дебіторки в Excel/CSV' },
+    
+    // --- План-Факт ---
+    { id: 'planfact_view_page', label: 'Доступ до модуля "План-Факт"' },
+    { id: 'planfact_view_all', label: 'Перегляд всіх планів компанії' },
+    { id: 'planfact_view_department', label: 'Перегляд планів свого відділу' },
+    { id: 'planfact_view_own', label: 'Перегляд власних планів' },
+    { id: 'planfact_create_plans', label: 'Створення планів' },
+    { id: 'planfact_edit_own', label: 'Редагування власних планів' },
+    { id: 'planfact_edit_department', label: 'Редагування планів свого відділу' },
+    { id: 'planfact_edit_all', label: 'Редагування всіх планів компанії' },
+    { id: 'planfact_manage_targets', label: 'Управління цілями та KPI в планах' },
+    { id: 'planfact_view_analytics', label: 'Перегляд аналітики та прогнозів' },
 ];
 
 

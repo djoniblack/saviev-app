@@ -93,6 +93,18 @@ export function initDebtsModule(container) {
     console.log('initDebtsModule called', container);
     if (!container) return;
     
+    // Проверяем права доступа
+    if (!window.hasPermission('debts_view_page')) {
+        container.innerHTML = `
+            <div class="bg-red-900 rounded-xl shadow-lg p-6 text-center">
+                <h2 class="text-2xl font-bold text-white mb-4">Доступ заборонено</h2>
+                <p class="text-red-200">У вас немає прав для перегляду дебіторської заборгованості.</p>
+                <p class="text-red-300 text-sm mt-2">Зверніться до адміністратора для надання доступу.</p>
+            </div>
+        `;
+        return;
+    }
+    
     container.innerHTML = `
         <div class="bg-gray-800 rounded-xl shadow-lg p-6">
             <div class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -101,10 +113,12 @@ export function initDebtsModule(container) {
                     <p class="mt-2 text-gray-400">Управління заборгованостями клієнтів</p>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="exportDebtsToExcel()" 
-                            class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
-                        📊 Експорт Excel
-                    </button>
+                    ${window.hasPermission('debts_export') ? `
+                        <button onclick="exportDebtsToExcel()" 
+                                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                            📊 Експорт Excel
+                        </button>
+                    ` : ''}
                     <button onclick="refreshDebtsData()" 
                             class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
                         🔄 Оновити
@@ -635,24 +649,47 @@ window.showDebtDetails = function(clientCode) {
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <h3 class="text-lg font-bold text-white mb-3">Коментар менеджера</h3>
-                    <textarea id="manager-comment-${clientCode}" 
-                              class="w-full h-24 bg-gray-700 text-white rounded border border-gray-600 p-3"
-                              placeholder="Додайте коментар про стан оплати...">${existingComment?.comment || ''}</textarea>
-                    ${existingComment ? `<div class="text-xs text-gray-400 mt-1">Оновлено: ${new Date(existingComment.updatedAt?.seconds * 1000).toLocaleDateString()}</div>` : ''}
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-white mb-3">Прогноз оплати</h3>
-                    <input type="date" id="payment-forecast-${clientCode}" 
-                           class="w-full bg-gray-700 text-white rounded border border-gray-600 p-3 mb-2"
-                           value="${existingForecast?.forecastDate || ''}">
-                    <input type="number" id="payment-amount-${clientCode}" 
-                           class="w-full bg-gray-700 text-white rounded border border-gray-600 p-3"
-                           placeholder="Сума очікуваної оплати"
-                           value="${existingForecast?.forecastAmount || ''}">
-                    ${existingForecast ? `<div class="text-xs text-gray-400 mt-1">Прогноз від: ${new Date(existingForecast.createdAt?.seconds * 1000).toLocaleDateString()}</div>` : ''}
-                </div>
+                ${window.hasPermission('debts_manage_comments') ? `
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-3">Коментар менеджера</h3>
+                        <textarea id="manager-comment-${clientCode}" 
+                                  class="w-full h-24 bg-gray-700 text-white rounded border border-gray-600 p-3"
+                                  placeholder="Додайте коментар про стан оплати...">${existingComment?.comment || ''}</textarea>
+                        ${existingComment ? `<div class="text-xs text-gray-400 mt-1">Оновлено: ${new Date(existingComment.updatedAt?.seconds * 1000).toLocaleDateString()}</div>` : ''}
+                    </div>
+                ` : existingComment ? `
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-3">Коментар менеджера</h3>
+                        <div class="w-full h-24 bg-gray-600 text-gray-300 rounded border border-gray-500 p-3 overflow-y-auto">
+                            ${existingComment.comment || 'Немає коментаря'}
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">Оновлено: ${new Date(existingComment.updatedAt?.seconds * 1000).toLocaleDateString()}</div>
+                    </div>
+                ` : ''}
+                ${window.hasPermission('debts_manage_forecasts') ? `
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-3">Прогноз оплати</h3>
+                        <input type="date" id="payment-forecast-${clientCode}" 
+                               class="w-full bg-gray-700 text-white rounded border border-gray-600 p-3 mb-2"
+                               value="${existingForecast?.forecastDate || ''}">
+                        <input type="number" id="payment-amount-${clientCode}" 
+                               class="w-full bg-gray-700 text-white rounded border border-gray-600 p-3"
+                               placeholder="Сума очікуваної оплати"
+                               value="${existingForecast?.forecastAmount || ''}">
+                        ${existingForecast ? `<div class="text-xs text-gray-400 mt-1">Прогноз від: ${new Date(existingForecast.createdAt?.seconds * 1000).toLocaleDateString()}</div>` : ''}
+                    </div>
+                ` : existingForecast ? `
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-3">Прогноз оплати</h3>
+                        <div class="w-full bg-gray-600 text-gray-300 rounded border border-gray-500 p-3 mb-2">
+                            Дата: ${existingForecast.forecastDate || 'Не вказано'}
+                        </div>
+                        <div class="w-full bg-gray-600 text-gray-300 rounded border border-gray-500 p-3">
+                            Сума: ${existingForecast.forecastAmount ? formatCurrency(existingForecast.forecastAmount) : 'Не вказано'}
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">Прогноз від: ${new Date(existingForecast.createdAt?.seconds * 1000).toLocaleDateString()}</div>
+                    </div>
+                ` : ''}
             </div>
             
             <div class="flex justify-end gap-4 mt-6">
@@ -660,10 +697,12 @@ window.showDebtDetails = function(clientCode) {
                         class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
                     Закрити
                 </button>
-                <button onclick="saveDebtComment('${clientCode}')" 
-                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                    Зберегти
-                </button>
+                ${window.hasPermission('debts_manage_comments') || window.hasPermission('debts_manage_forecasts') ? `
+                    <button onclick="saveDebtComment('${clientCode}')" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        Зберегти
+                    </button>
+                ` : ''}
             </div>
         </div>
     `;
@@ -675,9 +714,15 @@ window.showDebtDetails = function(clientCode) {
  * Сохранить комментарий по дебиторке
  */
 window.saveDebtComment = async function(clientCode) {
-    const comment = document.getElementById(`manager-comment-${clientCode}`).value;
-    const forecastDate = document.getElementById(`payment-forecast-${clientCode}`).value;
-    const forecastAmount = document.getElementById(`payment-amount-${clientCode}`).value;
+    // Проверяем права доступа
+    if (!window.hasPermission || (!window.hasPermission('debts_manage_comments') && !window.hasPermission('debts_manage_forecasts'))) {
+        alert('У вас немає прав для збереження даних');
+        return;
+    }
+    
+    const comment = document.getElementById(`manager-comment-${clientCode}`)?.value || '';
+    const forecastDate = document.getElementById(`payment-forecast-${clientCode}`)?.value || '';
+    const forecastAmount = document.getElementById(`payment-amount-${clientCode}`)?.value || '';
     
     try {
         const companyId = window.state?.currentCompanyId;
@@ -688,8 +733,8 @@ window.saveDebtComment = async function(clientCode) {
             return;
         }
         
-        // Сохраняем комментарий
-        if (comment.trim()) {
+        // Сохраняем комментарий (если есть права)
+        if (comment.trim() && window.hasPermission('debts_manage_comments')) {
             const commentData = {
                 clientCode,
                 comment: comment.trim(),
@@ -704,8 +749,8 @@ window.saveDebtComment = async function(clientCode) {
             );
         }
         
-        // Сохраняем прогноз оплаты
-        if (forecastDate && forecastAmount) {
+        // Сохраняем прогноз оплаты (если есть права)
+        if (forecastDate && forecastAmount && window.hasPermission('debts_manage_forecasts')) {
             const forecastData = {
                 clientCode,
                 forecastDate,
@@ -737,6 +782,12 @@ window.saveDebtComment = async function(clientCode) {
  * Экспорт в Excel
  */
 window.exportDebtsToExcel = function() {
+    // Проверяем права доступа
+    if (!window.hasPermission || !window.hasPermission('debts_export')) {
+        alert('У вас немає прав для експорту даних');
+        return;
+    }
+    
     try {
         // Подготавливаем данные для экспорта
         const exportData = debtsData.map(debt => ({

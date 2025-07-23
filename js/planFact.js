@@ -125,6 +125,18 @@ export function initPlanFactModule(container) {
     console.log('initPlanFactModule called', container);
     if (!container) return;
     
+    // Проверяем права доступа
+    if (!window.hasPermission('planfact_view_page')) {
+        container.innerHTML = `
+            <div class="bg-red-900 rounded-xl shadow-lg p-6 text-center">
+                <h2 class="text-2xl font-bold text-white mb-4">Доступ заборонено</h2>
+                <p class="text-red-200">У вас немає прав для перегляду модуля План-Факт.</p>
+                <p class="text-red-300 text-sm mt-2">Зверніться до адміністратора для надання доступу.</p>
+            </div>
+        `;
+        return;
+    }
+    
     container.innerHTML = `
         <div class="bg-gray-800 rounded-xl shadow-lg p-6">
             <div class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -133,10 +145,12 @@ export function initPlanFactModule(container) {
                     <p class="mt-2 text-gray-400">Планування та контроль виконання цілей</p>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="showCreatePlanModal()" 
-                            class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
-                        + Створити план
-                    </button>
+                    ${window.hasPermission('planfact_create_plans') ? `
+                        <button onclick="showCreatePlanModal()" 
+                                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                            + Створити план
+                        </button>
+                    ` : ''}
                     <button onclick="refreshPlanFactData()" 
                             class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
                         🔄 Оновити
@@ -513,6 +527,12 @@ function renderProgressCharts() {
  * Показать модальное окно создания плана
  */
 window.showCreatePlanModal = function() {
+    // Проверяем права доступа
+    if (!window.hasPermission || !window.hasPermission('planfact_create_plans')) {
+        alert('У вас немає прав для створення планів');
+        return;
+    }
+    
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60';
     modal.innerHTML = `
