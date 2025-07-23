@@ -232,7 +232,7 @@ function getManagerDepartment(managerName) {
 /**
  * Загрузка данных дебиторки
  */
-async function loadDebtsData() {
+export async function loadDebtsData() {
     try {
         // Показываем индикатор загрузки
         showLoadingState();
@@ -293,12 +293,27 @@ async function loadDebtsData() {
         if (companyId && results.length > 1) {
             const [, employeesSnap, departmentsSnap, commentsSnap, forecastsSnap] = results;
             
-            // Загружаем всех сотрудников и фильтруем менеджеров (у которых есть клиенты)
+            // Загружаем всех сотрудников и фильтруем менеджеров
             const allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            managersData = allEmployees.filter(emp => emp.position && 
-                (emp.position.toLowerCase().includes('менеджер') || 
-                 emp.position.toLowerCase().includes('manager') ||
-                 emp.role === 'manager'));
+            
+            // Сначала пытаемся найти менеджеров по должности/роли
+            managersData = allEmployees.filter(emp => {
+                if (emp.role === 'manager') return true;
+                if (emp.position) {
+                    const position = emp.position.toLowerCase();
+                    return position.includes('менеджер') || 
+                           position.includes('manager') || 
+                           position.includes('sales') ||
+                           position.includes('продаж');
+                }
+                return false;
+            });
+            
+            // Если не нашли менеджеров по критериям, используем всех сотрудников
+            if (managersData.length === 0) {
+                console.warn('🔍 Менеджери не знайдені за критеріями, використовуємо всіх співробітників');
+                managersData = allEmployees;
+            }
             
             departmentsData = departmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             clientCommentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -391,8 +406,17 @@ function renderDebtsFilters() {
     let departmentOptions = '';
     let managerOptions = '';
     
+    console.log('🔧 renderDebtsFilters викликано:');
+    console.log('- departmentsData.length:', departmentsData.length);
+    console.log('- managersData.length:', managersData.length);
+    console.log('- debtsData.length:', debtsData.length);
+    
     if (departmentsData.length > 0 && managersData.length > 0) {
         // Используем данные из Firebase
+        console.log('✅ Використовуємо дані з Firebase');
+        console.log('Departments:', departmentsData);
+        console.log('Managers:', managersData);
+        
         departmentOptions = departmentsData.map(dept => 
             `<option value="${dept.id}">${dept.name}</option>`
         ).join('');
@@ -400,7 +424,12 @@ function renderDebtsFilters() {
         // Получаем менеджеров из Firebase, фильтруем по выбранному отделу
         const selectedDepartment = document.getElementById('department-filter')?.value || '';
         const filteredManagers = selectedDepartment 
-            ? managersData.filter(manager => manager.departmentId === selectedDepartment)
+            ? managersData.filter(manager => {
+                // Проверяем разные возможные поля для связи с отделом
+                return manager.departmentId === selectedDepartment ||
+                       manager.department === selectedDepartment ||
+                       (manager.department && manager.department.id === selectedDepartment);
+              })
             : managersData;
         
         managerOptions = filteredManagers.map(manager => 
@@ -410,8 +439,14 @@ function renderDebtsFilters() {
         console.log('🔧 Фільтри: використовуються дані з Firebase');
     } else {
         // Fallback: используем данные из API долгов
-        const uniqueDepartments = [...new Set(debtsData.map(d => d.department))];
-        const uniqueManagers = [...new Set(debtsData.map(d => d.manager))];
+        console.log('⚠️ Fallback: використовуємо дані з API долгів');
+        console.log('debtsData:', debtsData);
+        
+        const uniqueDepartments = [...new Set(debtsData.map(d => d.department))].filter(Boolean);
+        const uniqueManagers = [...new Set(debtsData.map(d => d.manager))].filter(Boolean);
+        
+        console.log('uniqueDepartments:', uniqueDepartments);
+        console.log('uniqueManagers:', uniqueManagers);
         
         departmentOptions = uniqueDepartments.map(dept => 
             `<option value="${dept}">${dept}</option>`
@@ -490,7 +525,12 @@ function updateManagersFilter() {
     if (departmentsData.length > 0 && managersData.length > 0) {
         // Используем данные из Firebase
         const filteredManagers = selectedDepartment 
-            ? managersData.filter(manager => manager.departmentId === selectedDepartment)
+            ? managersData.filter(manager => {
+                // Проверяем разные возможные поля для связи с отделом
+                return manager.departmentId === selectedDepartment ||
+                       manager.department === selectedDepartment ||
+                       (manager.department && manager.department.id === selectedDepartment);
+              })
             : managersData;
         
         managerOptions = filteredManagers.map(manager => 
@@ -550,7 +590,12 @@ function applyFilters() {
             const selectedDepartment = departmentsData.find(dept => dept.id === departmentFilter);
             if (selectedDepartment) {
                 const departmentManagers = managersData
-                    .filter(manager => manager.departmentId === departmentFilter)
+                    .filter(manager => {
+                        // Проверяем разные возможные поля для связи с отделом
+                        return manager.departmentId === departmentFilter ||
+                               manager.department === departmentFilter ||
+                               (manager.department && manager.department.id === departmentFilter);
+                    })
                     .map(manager => manager.name);
                 
                 filteredData = filteredData.filter(d => departmentManagers.includes(d.manager));
@@ -1158,3 +1203,6 @@ function formatCurrency(amount) {
         maximumFractionDigits: 0
     }).format(amount);
 }
+
+// Глобальный доступ к функции загрузки
+window.loadDebtsData = loadDebtsData;
