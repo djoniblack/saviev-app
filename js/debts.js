@@ -149,18 +149,30 @@ function transformApiDataToInternalFormat(apiData) {
     apiData.forEach(item => {
         const clientCode = item["Клиент.Код"] || item["Главный контрагент.Код"];
         const clientName = item["Клиент"] || item["Главный контрагент"];
-        const manager = item["Менеджер"];
+        const managerNameFromAPI = item["Менеджер"];
         const debt = parseFloat(item["Долг"]) || 0;
         const contract = item["Договор"] || "Основний договір";
         
         if (!clientCode || debt === 0) return; // Пропускаем записи без кода клиента или долга
         
+        // ВАЖНО: Ищем менеджера в Firebase данных, а не используем из API
+        const managerFromFirebase = findManagerInFirebaseData(managerNameFromAPI);
+        
+        // Если менеджер не найден в Firebase, пропускаем эту запись
+        if (!managerFromFirebase && managersData.length > 0) {
+            console.log(`⚠️ Менеджер "${managerNameFromAPI}" не знайдений у Firebase, пропускаємо клієнта ${clientName}`);
+            return;
+        }
+        
+        const finalManagerName = managerFromFirebase ? managerFromFirebase.name : (managerNameFromAPI || 'Невизначений менеджер');
+        const finalDepartment = managerFromFirebase ? getManagerDepartmentFromFirebase(managerFromFirebase) : 'Невизначений відділ';
+        
         if (!clientsMap.has(clientCode)) {
             clientsMap.set(clientCode, {
                 clientCode: clientCode || '',
                 clientName: clientName || 'Невизначений клієнт',
-                manager: manager || 'Невизначений менеджер',
-                department: getManagerDepartment(manager) || 'Невизначений відділ',
+                manager: finalManagerName,
+                department: finalDepartment,
                 totalDebt: 0,
                 overdueDebt: 0,
                 currentDebt: 0,
@@ -180,12 +192,12 @@ function transformApiDataToInternalFormat(apiData) {
         client.contracts.push({
             name: contract,
             debt: debt,
-            manager: manager
+            manager: finalManagerName
         });
     });
     
     // Преобразуем Map в массив
-    return Array.from(clientsMap.values()).map(client => ({
+    const result = Array.from(clientsMap.values()).map(client => ({
         ...client,
         // Создаем имитацию счетов для совместимости
         invoices: client.contracts.map((contract, index) => ({
@@ -197,10 +209,74 @@ function transformApiDataToInternalFormat(apiData) {
             contract: contract.name
         }))
     }));
+    
+    console.log('📋 Преобразование API данных:');
+    console.log('- Записей в API:', apiData.length);
+    console.log('- Менеджеров в Firebase:', managersData.length);
+    console.log('- Итоговых клиентов:', result.length);
+    console.log('- Уникальных менеджеров в результате:', [...new Set(result.map(c => c.manager))]);
+    
+    return result;
 }
 
 /**
- * Получение отдела менеджера
+ * Поиск менеджера в Firebase данных по имени из API
+ */
+function findManagerInFirebaseData(managerNameFromAPI) {
+    if (!managerNameFromAPI || managersData.length === 0) return null;
+    
+    // Ищем точное совпадение по имени
+    let manager = managersData.find(mgr => 
+        mgr.name === managerNameFromAPI || 
+        mgr.fullName === managerNameFromAPI ||
+        (mgr.firstName && mgr.lastName && `${mgr.firstName} ${mgr.lastName}` === managerNameFromAPI)
+    );
+    
+    if (manager) return manager;
+    
+    // Если точное совпадение не найдено, ищем частичное (по фамилии)
+    const nameParts = managerNameFromAPI.split(' ');
+    if (nameParts.length >= 2) {
+        const lastName = nameParts[nameParts.length - 1];
+        manager = managersData.find(mgr => 
+            mgr.name && mgr.name.includes(lastName) ||
+            mgr.lastName === lastName ||
+            mgr.fullName && mgr.fullName.includes(lastName)
+        );
+    }
+    
+    return manager;
+}
+
+/**
+ * Получение отдела менеджера из Firebase данных
+ */
+function getManagerDepartmentFromFirebase(manager) {
+    if (!manager) return 'Невизначений відділ';
+    
+    // Если у менеджера есть departmentId, ищем отдел по ID
+    if (manager.departmentId && departmentsData.length > 0) {
+        const department = departmentsData.find(dept => dept.id === manager.departmentId);
+        if (department) return department.name;
+    }
+    
+    // Если есть поле department (объект)
+    if (manager.department && typeof manager.department === 'object' && manager.department.name) {
+        return manager.department.name;
+    }
+    
+    // Если есть поле department (строка)
+    if (manager.department && typeof manager.department === 'string') {
+        // Ищем отдел по ID
+        const department = departmentsData.find(dept => dept.id === manager.department);
+        return department ? department.name : manager.department;
+    }
+    
+    return 'Невизначений відділ';
+}
+
+/**
+ * Получение отдела менеджера (УСТАРЕЛО - используйте getManagerDepartmentFromFirebase)
  */
 function getManagerDepartment(managerName) {
     if (!managerName) return "Невизначений відділ";
