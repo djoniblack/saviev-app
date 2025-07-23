@@ -1514,3 +1514,35 @@ window.testFilterEvents = function() {
     
     console.log('🧪 =================== ТЕСТ СОБЫТИЙ ЗАВЕРШЕН ===================');
 };
+
+// Функция для тестирования фильтрации с реальными значениями
+window.testRealFiltering = function() {
+    console.log('🧪 =================== ТЕСТ РЕАЛЬНОЙ ФИЛЬТРАЦИИ ===================');
+    
+    const departmentFilter = document.getElementById('department-filter');
+    const managerFilter = document.getElementById('manager-filter');
+    
+    if (departmentFilter && departmentFilter.options.length > 1) {
+        // Выбираем первый отдел (не "Всі відділи")
+        departmentFilter.selectedIndex = 1;
+        console.log('🧪 Устанавливаем отдел:', departmentFilter.value);
+        
+        const deptEvent = new Event('change', { bubbles: true });
+        departmentFilter.dispatchEvent(deptEvent);
+        
+        // Ждем 500ms и выбираем менеджера
+        setTimeout(() => {
+            if (managerFilter && managerFilter.options.length > 1) {
+                managerFilter.selectedIndex = 1;
+                console.log('🧪 Устанавливаем менеджера:', managerFilter.value);
+                
+                const mgrEvent = new Event('change', { bubbles: true });
+                managerFilter.dispatchEvent(mgrEvent);
+            }
+        }, 500);
+    } else {
+        console.error('❌ Фильтры не найдены или пусты');
+    }
+    
+    console.log('🧪 =================== ТЕСТ ЗАПУЩЕН ===================');
+};
