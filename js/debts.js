@@ -292,10 +292,24 @@ async function loadDebtsData() {
         
         if (companyId && results.length > 1) {
             const [, employeesSnap, departmentsSnap, commentsSnap, forecastsSnap] = results;
-            managersData = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Загружаем всех сотрудников и фильтруем менеджеров (у которых есть клиенты)
+            const allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            managersData = allEmployees.filter(emp => emp.position && 
+                (emp.position.toLowerCase().includes('менеджер') || 
+                 emp.position.toLowerCase().includes('manager') ||
+                 emp.role === 'manager'));
+            
             departmentsData = departmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             clientCommentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             paymentForecastsData = forecastsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            console.log('📊 Завантажено з Firebase:');
+            console.log('- Співробітників:', allEmployees.length);
+            console.log('- Менеджерів:', managersData.length);
+            console.log('- Відділів:', departmentsData.length);
+            console.log('Менеджери:', managersData.map(m => `${m.name} (${m.departmentId})`));
+            console.log('Відділи:', departmentsData.map(d => `${d.name} (${d.id})`));
         }
         
         // Преобразуем данные API в нужный формат
@@ -373,24 +387,58 @@ function renderDebtsFilters() {
     const filtersContainer = document.getElementById('debts-filters-container');
     if (!filtersContainer) return;
     
-    const managers = [...new Set(debtsData.map(d => d.manager))];
-    const departments = [...new Set(debtsData.map(d => d.department))];
+    // Получаем отделы из Firebase или fallback из данных долгов
+    let departmentOptions = '';
+    let managerOptions = '';
+    
+    if (departmentsData.length > 0 && managersData.length > 0) {
+        // Используем данные из Firebase
+        departmentOptions = departmentsData.map(dept => 
+            `<option value="${dept.id}">${dept.name}</option>`
+        ).join('');
+        
+        // Получаем менеджеров из Firebase, фильтруем по выбранному отделу
+        const selectedDepartment = document.getElementById('department-filter')?.value || '';
+        const filteredManagers = selectedDepartment 
+            ? managersData.filter(manager => manager.departmentId === selectedDepartment)
+            : managersData;
+        
+        managerOptions = filteredManagers.map(manager => 
+            `<option value="${manager.id}">${manager.name}</option>`
+        ).join('');
+        
+        console.log('🔧 Фільтри: використовуються дані з Firebase');
+    } else {
+        // Fallback: используем данные из API долгов
+        const uniqueDepartments = [...new Set(debtsData.map(d => d.department))];
+        const uniqueManagers = [...new Set(debtsData.map(d => d.manager))];
+        
+        departmentOptions = uniqueDepartments.map(dept => 
+            `<option value="${dept}">${dept}</option>`
+        ).join('');
+        
+        managerOptions = uniqueManagers.map(manager => 
+            `<option value="${manager}">${manager}</option>`
+        ).join('');
+        
+        console.log('⚠️ Фільтри: використовуються дані з API долгів (fallback)');
+    }
     
     filtersContainer.innerHTML = `
         <div class="bg-gray-700 rounded-lg p-4">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1 text-gray-200">Менеджер:</label>
-                    <select id="manager-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
-                        <option value="">Всі менеджери</option>
-                        ${managers.map(m => `<option value="${m}">${m}</option>`).join('')}
-                    </select>
-                </div>
-                <div>
                     <label class="block text-sm font-medium mb-1 text-gray-200">Відділ:</label>
                     <select id="department-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
                         <option value="">Всі відділи</option>
-                        ${departments.map(d => `<option value="${d}">${d}</option>`).join('')}
+                        ${departmentOptions}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-200">Менеджер:</label>
+                    <select id="manager-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
+                        <option value="">Всі менеджери</option>
+                        ${managerOptions}
                     </select>
                 </div>
                 <div>
@@ -416,10 +464,63 @@ function renderDebtsFilters() {
     `;
     
     // Обработчики фильтров
+    document.getElementById('department-filter').onchange = () => {
+        updateManagersFilter();
+        applyFilters();
+    };
     document.getElementById('manager-filter').onchange = applyFilters;
-    document.getElementById('department-filter').onchange = applyFilters;
     document.getElementById('debt-type-filter').onchange = applyFilters;
     document.getElementById('sort-filter').onchange = applyFilters;
+}
+
+/**
+ * Обновление фильтра менеджеров при изменении отдела
+ */
+function updateManagersFilter() {
+    const departmentFilter = document.getElementById('department-filter');
+    const managerFilter = document.getElementById('manager-filter');
+    
+    if (!departmentFilter || !managerFilter) return;
+    
+    const selectedDepartment = departmentFilter.value;
+    const currentManager = managerFilter.value;
+    
+    let managerOptions = '';
+    
+    if (departmentsData.length > 0 && managersData.length > 0) {
+        // Используем данные из Firebase
+        const filteredManagers = selectedDepartment 
+            ? managersData.filter(manager => manager.departmentId === selectedDepartment)
+            : managersData;
+        
+        managerOptions = filteredManagers.map(manager => 
+            `<option value="${manager.id}">${manager.name}</option>`
+        ).join('');
+        
+        // Сбрасываем выбор менеджера если он не входит в новый отдел
+        if (currentManager && !filteredManagers.find(m => m.id === currentManager)) {
+            managerFilter.value = '';
+        }
+    } else {
+        // Fallback: фильтруем менеджеров по отделу из данных долгов
+        const managersInDepartment = selectedDepartment 
+            ? [...new Set(debtsData.filter(d => d.department === selectedDepartment).map(d => d.manager))]
+            : [...new Set(debtsData.map(d => d.manager))];
+        
+        managerOptions = managersInDepartment.map(manager => 
+            `<option value="${manager}">${manager}</option>`
+        ).join('');
+        
+        // Сбрасываем выбор менеджера если он не входит в новый отдел
+        if (currentManager && !managersInDepartment.includes(currentManager)) {
+            managerFilter.value = '';
+        }
+    }
+    
+    managerFilter.innerHTML = `
+        <option value="">Всі менеджери</option>
+        ${managerOptions}
+    `;
 }
 
 /**
@@ -433,12 +534,38 @@ function applyFilters() {
     
     let filteredData = [...debtsData];
     
-    if (managerFilter) {
-        filteredData = filteredData.filter(d => d.manager === managerFilter);
-    }
-    
-    if (departmentFilter) {
-        filteredData = filteredData.filter(d => d.department === departmentFilter);
+    if (departmentsData.length > 0 && managersData.length > 0) {
+        // Используем данные из Firebase
+        
+        // Фильтрация по менеджеру (по ID)
+        if (managerFilter) {
+            const selectedManager = managersData.find(m => m.id === managerFilter);
+            if (selectedManager) {
+                filteredData = filteredData.filter(d => d.manager === selectedManager.name);
+            }
+        }
+        
+        // Фильтрация по отделу (по ID)
+        if (departmentFilter) {
+            const selectedDepartment = departmentsData.find(dept => dept.id === departmentFilter);
+            if (selectedDepartment) {
+                const departmentManagers = managersData
+                    .filter(manager => manager.departmentId === departmentFilter)
+                    .map(manager => manager.name);
+                
+                filteredData = filteredData.filter(d => departmentManagers.includes(d.manager));
+            }
+        }
+    } else {
+        // Fallback: используем данные из API долгов (прямое сравнение по названиям)
+        
+        if (managerFilter) {
+            filteredData = filteredData.filter(d => d.manager === managerFilter);
+        }
+        
+        if (departmentFilter) {
+            filteredData = filteredData.filter(d => d.department === departmentFilter);
+        }
     }
     
     if (debtTypeFilter === 'overdue') {
