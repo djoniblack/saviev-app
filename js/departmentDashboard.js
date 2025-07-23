@@ -707,7 +707,6 @@ function renderDepartmentSection(departmentData) {
                   <th class="h-12 px-4 text-right align-middle font-medium text-gray-500 dark:text-gray-400">LTV</th>
                   <th class="h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400">% Покриття груп</th>
                   <th class="h-12 px-4 text-right align-middle font-medium text-gray-500 dark:text-gray-400">Сума продаж</th>
-                  <th class="h-12 px-4 text-right align-middle font-medium text-gray-500 dark:text-gray-400">Сума фокусу</th>
                   <th class="h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400">К-сть клієнтів фокусу</th>
                   <th class="h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400">% фокусу від бази</th>
                   <th class="h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400">Відгружені фокус</th>
@@ -726,7 +725,6 @@ function renderDepartmentSection(departmentData) {
                   <td class="p-4 align-middle text-right">—</td>
                   <td class="p-4 align-middle text-center">—</td>
                   <td class="p-4 align-middle text-right">${summary.totalRevenue.toFixed(2)} грн</td>
-                  <td class="p-4 align-middle text-right">${summary.focusTaskAmount.toFixed(2)} грн</td>
                   <td class="p-4 align-middle text-center">—</td>
                   <td class="p-4 align-middle text-center">—</td>
                   <td class="p-4 align-middle text-center">${summary.shippedFocusClients || 0}</td>
@@ -787,7 +785,6 @@ function createManagerRowHTML(manager) {
             <td class="p-4 align-middle text-right text-black">${formatCurrency(kpi.ltv)}</td>
             <td class="p-4 align-middle text-center text-black">${formatPercentage(kpi.productCoverage)}</td>
             <td class="p-4 align-middle text-right text-black">${formatCurrency(kpi.totalRevenue)}</td>
-            <td class="p-4 align-middle text-right font-semibold text-black">${formatCurrency(kpi.focusTaskAmount)}</td>
             <td class="p-4 align-middle text-center text-black">${kpi.focusClients}</td>
             <td class="p-4 align-middle text-center text-black">${formatPercentage(kpi.focusBasePercentage)}</td>
             <td class="p-4 align-middle text-center text-black">${kpi.shippedFocusClients || 0}</td>
