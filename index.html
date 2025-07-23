@@ -113,9 +113,7 @@
                 <button data-target="reportsPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-yellow-600 active:bg-yellow-600 flex items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6"/></svg>Звіти
                 </button>
-                <button data-target="competenciesPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-pink-600 active:bg-pink-600 flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 7v7m-7-7h14"/></svg>Компетенції
-                </button>
+
                 <button data-target="orgchartPage" class="nav-btn px-4 py-2 text-gray-300 font-semibold rounded-md transition-colors bg-gray-700 hover:bg-indigo-600 active:bg-indigo-600 flex items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg>Оргструктура
                 </button>
@@ -368,124 +366,7 @@
                 </div>
             </div>
             
-            <!-- СТОРІНКА КОМПЕТЕНЦІЙ -->
-            <div id="competenciesPage" class="page-transition">
-                <div class="w-full bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
-                    <!-- Навігація по вкладках -->
-                    <div class="border-b border-gray-700 mb-8">
-                        <nav class="flex space-x-4" aria-label="Tabs">
-                            <button id="tab-assessment" class="tab active" onclick="switchCompetencyTab('assessment')">Оцінка Співробітника</button>
-                            <button id="tab-history" class="tab" onclick="switchCompetencyTab('history')">Історія</button>
-                            <button id="tab-reports" class="tab" onclick="switchCompetencyTab('reports')">Звіти по компетенціям</button>
-                            <button id="tab-settings" class="tab" onclick="switchCompetencyTab('settings')">Налаштування компетенцій</button>
-                        </nav>
-                    </div>
 
-                    <!-- Вкладка: Оцінка Співробітника -->
-                    <div id="panel-assessment" class="tab-panel active">
-                        <div class="mb-8">
-                            <h1 class="text-3xl font-bold text-white">Аркуш Оцінки Співробітника</h1>
-                            <p class="text-gray-400 mt-1">Оберіть співробітника та період для перегляду або проведення оцінки.</p>
-                            <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-gray-900/50 border border-gray-700 rounded-xl">
-                                <div><label for="departmentSelector" class="block text-sm font-medium text-gray-400 mb-1">Відділ</label><select id="departmentSelector" class="dark-input w-full"></select></div>
-                                <div><label for="employeeSelector" class="block text-sm font-medium text-gray-400 mb-1">Співробітник</label><select id="employeeSelector" class="dark-input w-full" disabled><option value="">-- Спочатку оберіть відділ --</option></select></div>
-                                <div><label for="periodSelector" class="block text-sm font-medium text-gray-400 mb-1">Період Оцінки</label><input type="month" id="periodSelector" class="dark-input w-full"></div>
-                            </div>
-                        </div>
-                        <div id="assessmentContent" class="content-area">
-                             <div class="flex justify-end mb-8"><button id="saveAssessmentBtn" class="btn btn-primary">Зберегти Оцінку</button></div>
-                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                <div class="lg:col-span-1 space-y-8">
-                                    <div id="employeeCard" class="bg-gray-800 border border-gray-700 p-6 rounded-2xl"><div class="flex items-center space-x-4"><img id="employeePhoto" src="" alt="Фото співробітника" class="w-20 h-20 rounded-full border-2 border-indigo-500"><div><h2 id="employeeName" class="text-2xl font-bold text-white"></h2><p id="employeePosition" class="text-indigo-400"></p></div></div></div>
-                                    <div class="bg-gray-800 border border-gray-700 p-6 rounded-2xl"><h3 class="text-xl font-bold text-white mb-4">Матриця компетенцій</h3><div class="relative h-80"><canvas id="competencyRadarChart"></canvas></div></div>
-                                </div>
-                                <div class="lg:col-span-2 bg-gray-800 border border-gray-700 p-6 rounded-2xl"><h3 class="text-xl font-bold text-white mb-6">Детальна оцінка компетенцій</h3><div id="competencyList" class="space-y-6"></div><div class="mt-8"><label for="overallComment" class="block text-sm font-medium text-gray-400 mb-1">Загальний коментар керівника</label><textarea id="overallComment" rows="4" class="dark-input w-full" placeholder="Введіть загальний відгук про роботу співробітника за цей період..."></textarea></div></div>
-                            </div>
-                        </div>
-                        <div id="placeholder" class="text-center py-20 border-2 border-dashed border-gray-700 rounded-xl"><svg class="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg><h3 class="mt-2 text-xl font-semibold text-white">Оберіть співробітника</h3><p class="mt-1 text-sm text-gray-500">Щоб розпочати оцінку, будь ласка, оберіть відділ та співробітника у фільтрах вище.</p></div>
-                    </div>
-
-                    <!-- Вкладка: Історія -->
-                    <div id="panel-history" class="tab-panel">
-                        <div class="mb-8">
-                            <h1 class="text-3xl font-bold text-white">Історія Оцінок</h1>
-                            <p class="text-gray-400 mt-1">Всі попередні оцінки співробітника за періодами.</p>
-                        </div>
-                        <div id="historyList" class="space-y-6"></div>
-                    </div>
-
-                    <!-- Вкладка: Звіти -->
-                    <div id="panel-reports" class="tab-panel">
-                        <!-- Подвкладки навигации -->
-                        <div class="mb-6 border-b border-gray-700">
-                            <nav class="flex space-x-4" aria-label="Report Tabs">
-                                <button id="reportTabMain" type="button" class="report-tab active-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm">Головний звіт</button>
-                                <button id="reportTabCompare" type="button" class="report-tab group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm">Порівняльний звіт</button>
-                            </nav>
-                        </div>
-                        <!-- Головний звіт -->
-                        <div id="mainReportTabPanel" class="report-tab-panel active">
-                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                                <div>
-                                    <h1 class="text-3xl font-bold text-white">Звіти по компетенціям</h1>
-                                    <p class="text-gray-400 mt-1">Аналізуйте сильні сторони та зони росту вашої команди.</p>
-                                </div>
-                                <div class="flex items-center gap-4">
-                                    <label for="reportDeptSelector" class="text-sm font-medium text-gray-400">Відділ:</label>
-                                    <select id="reportDeptSelector" class="dark-input"></select>
-                                </div>
-                                <div class="flex items-center gap-4">
-                                    <label for="reportPeriodSelector" class="text-sm font-medium text-gray-400">Період:</label>
-                                    <input type="month" id="reportPeriodSelector" class="dark-input w-full">
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-                                <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700"><h4 class="text-gray-400">Середня оцінка (Q2 2025)</h4><p id="reportAvgScore" class="text-4xl font-bold text-white mt-1">4.2 / 5</p></div>
-                                <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700"><h4 class="text-gray-400">Найсильніша компетенція</h4><p id="reportTopComp" class="text-3xl font-bold text-green-400 mt-1">Технічна експертиза</p></div>
-                                <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700"><h4 class="text-gray-400">Зона для розвитку</h4><p id="reportLowComp" class="text-3xl font-bold text-yellow-400 mt-1">Комунікація</p></div>
-                            </div>
-                            <div class="grid grid-cols-1 xl:grid-cols-5 gap-8">
-                                <div class="xl:col-span-3 bg-gray-800 p-6 rounded-2xl border border-gray-700"><h3 class="text-xl font-bold text-white mb-4">Середні оцінки по компетенціям (Q2 2025)</h3><div class="relative h-96"><canvas id="competencyBarChart"></canvas></div></div>
-                                <div class="xl:col-span-2 bg-gray-800 p-6 rounded-2xl border border-gray-700"><h3 class="text-xl font-bold text-white mb-4">Оцінки співробітників (Q2 2025)</h3><div id="reportEmployeeList" class="space-y-3 overflow-y-auto h-96 pr-2"></div></div>
-                            </div>
-                        </div>
-                        <!-- Порівняльний звіт -->
-                        <div id="compareReportTabPanel" class="report-tab-panel">
-                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                                <div>
-                                    <h1 class="text-3xl font-bold text-white">Порівняльний звіт по компетенціям</h1>
-                                    <p class="text-gray-400 mt-1">Порівняйте динаміку розвитку компетенцій між двома періодами.</p>
-                                </div>
-                            </div>
-                            <div class="flex flex-wrap gap-4 items-end mb-6">
-                                <label class="text-gray-400">Порівняти періоди:</label>
-                                <input type="month" id="reportComparePeriod1" class="dark-input mx-2">
-                                <input type="month" id="reportComparePeriod2" class="dark-input mx-2">
-                                <button id="reportCompareBtn" class="btn btn-secondary">Порівняти</button>
-                            </div>
-                            <div id="reportCompareResult" class="mb-8"></div>
-                            <!-- Місце для майбутнього графіка порівняння -->
-                            <div id="reportCompareChartContainer" class="my-8"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- Вкладка: Налаштування -->
-                    <div id="panel-settings" class="tab-panel">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8"><div><h1 class="text-3xl font-bold text-white">Налаштування Моделей Компетенцій</h1><p class="text-gray-400 mt-1">Створюйте та редагуйте компетенції, що використовуються для оцінки.</p></div></div>
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            <div class="lg:col-span-1 bg-gray-800 p-6 rounded-2xl border border-gray-700"><h3 class="text-xl font-bold text-white mb-4">Список компетенцій</h3><div id="settingsCompetencyList" class="space-y-2"></div><button id="addNewCompetencyBtn" class="btn btn-secondary w-full mt-4">Додати нову</button></div>
-                            <div class="lg:col-span-2 bg-gray-800 p-6 rounded-2xl border border-gray-700"><h3 class="text-xl font-bold text-white mb-6">Редагування: <span id="editingCompetencyName" class="text-indigo-400"></span></h3><div id="settingsForm" class="space-y-4"><div><label for="compName" class="block text-sm font-medium text-gray-400 mb-1">Назва компетенції</label><input type="text" id="compName" class="dark-input w-full"></div><div><label for="compCategory" class="block text-sm font-medium text-gray-400 mb-1">Категорія</label><input type="text" id="compCategory" class="dark-input w-full"></div><div><label for="compDesc" class="block text-sm font-medium text-gray-400 mb-1">Опис</label><textarea id="compDesc" rows="3" class="dark-input w-full"></textarea></div><div><h4 class="text-sm font-medium text-gray-400 mb-2">Поведінкові індикатори</h4><div id="indicatorList" class="space-y-2"></div><button id="addIndicatorBtn" class="btn btn-secondary text-sm mt-2">Додати індикатор</button></div><div class="mt-4 pt-4 border-t border-gray-600"><h4 class="text-sm font-medium text-gray-400 mb-2">Призначення відділам</h4><div id="departmentAssignmentList" class="space-y-2"></div></div><div class="mt-4 pt-4 border-t border-gray-600">
-  <label for="compGrowthComment" class="block text-sm font-medium text-gray-400 mb-1">Порада/коментар помічника зростання</label>
-  <textarea id="compGrowthComment" rows="2" class="dark-input w-full" placeholder="Введіть текст поради або декілька порад через Enter..."></textarea>
-</div>
-<div class="mt-2">
-  <label for="compGrowthThreshold" class="block text-sm font-medium text-gray-400 mb-1">Поріг балу для появи помічника</label>
-  <input id="compGrowthThreshold" type="number" min="1" max="5" class="dark-input w-32" value="4">
-</div></div><div class="flex justify-end gap-4 mt-8 border-t border-gray-700 pt-6"><button id="deleteCompetencyBtn" class="btn btn-danger">Видалити</button><button id="saveCompetencyBtn" class="btn btn-primary">Зберегти зміни</button></div></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             
             <!-- Помічник зростання -->
             <!-- This block is removed to avoid duplicate IDs with the modal version below -->
@@ -661,7 +542,7 @@
 
     <script src="js/orgchart.js?v=20240610"></script>
     <script type="module" src="js/main.js?v=20240610"></script>
-    <script type="module" src="js/competencies.js?v=20240610"></script>
+    
     <script type="module" src="js/dashboard.js?v=20240610"></script>
     <script type="module" src="js/firebase.js?v=20240610"></script>
     <script type="module" src="js/focus.js?v=20240610"></script>

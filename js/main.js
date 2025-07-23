@@ -4,7 +4,7 @@ window.state = window.state || {};
 import * as firebase from './firebase.js'; // Імпортуємо всі функції Firebase
 import * as ui from './ui.js';           // Імпортуємо всі функції UI
 import * as auth from './auth.js';
-import { initCompetenciesModule, updateCompetenciesData } from './competencies.js'; // Імпортуємо модуль компетенцій
+// import { initCompetenciesModule, updateCompetenciesData } from './competencies.js'; // ВІДКЛЮЧЕНО: Модуль компетенцій
 import { openAddSalesModal, closeAddSalesModal, renderSalesEmployeesTable, getSalesDataFromModal } from './ui.js';
 import { renderDepartmentReport } from './reports.js';
 import { setupUniversalTabs } from './ui.js';
@@ -437,7 +437,7 @@ async function setupFirestoreListeners() {
                 state.allEmployees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
                 window.state = state; // Синхронізуємо window.state
                 if (state.initialLoadCompleted) {
-                    updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId);
+                    // updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId); // ВІДКЛЮЧЕНО
                     renderApp(); // ДОДАНО: тепер співробітники зʼявляються одразу
                 }
             },
@@ -446,13 +446,13 @@ async function setupFirestoreListeners() {
                 window.state = state; // Синхронізуємо window.state
                 if (state.initialLoadCompleted) {
                     if (state.currentUserId && state.currentCompanyId) loadCurrentEmployeeData(); // Re-evaluate current employee data if departments change (e.g. manager changes)
-                    updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId);
+                    // updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId); // ВІДКЛЮЧЕНО
                 }
             },
             'positions': (snapshot) => { 
                 state.positions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
                 window.state = state; // Синхронізуємо window.state
-                if (state.initialLoadCompleted) updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId);
+                if (state.initialLoadCompleted) { /* updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId); */ } // ВІДКЛЮЧЕНО
             },
             'schedules': (snapshot) => { 
                 state.schedules = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
@@ -2659,9 +2659,9 @@ function showPageWithNavUpdate(pageId) {
     } else if (pageId === 'vacationsPage' && hasPermission('vacations_view_page')) {
         renderVacationsPage();
     } else if (pageId === 'competenciesPage' && hasPermission('competencies_view_page')) {
-        // Ініціалізація сторінки компетенцій
-        updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId);
-        console.log('Competencies page initialized');
+        // ВІДКЛЮЧЕНО: Ініціалізація сторінки компетенцій
+        // updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId);
+        console.log('Competencies page DISABLED - module has been deactivated');
     } else if (pageId === 'salesAssistantPage' && hasPermission('sales_manage')) {
         const container = document.getElementById('salesAssistantPage');
         initSalesAssistantPage(container);
@@ -2890,7 +2890,7 @@ function init() {
     ui.initializeDOMElements(); // Ініціалізуємо посилання на DOM-елементи
     auth.initAuthListener(handleUserLogin, handleUserLogout); // Ініціалізуємо слухача авторизації
     initEventListeners(); // Ініціалізуємо всі інші обробники подій
-    initCompetenciesModule(); // Ініціалізуємо модуль компетенцій
+    // initCompetenciesModule(); // ВІДКЛЮЧЕНО: Ініціалізуємо модуль компетенцій
 
     let stateRestored = loadAppState(); // Спробувати відновити стан
 
@@ -2905,7 +2905,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.initializeDOMElements(); // Ініціалізуємо посилання на DOM-елементи
     auth.initAuthListener(handleUserLogin, handleUserLogout); // Ініціалізуємо слухача авторизації
     initEventListeners(); // Ініціалізуємо всі інші обробники подій
-    initCompetenciesModule(); // Ініціалізуємо модуль компетенцій
+    // initCompetenciesModule(); // ВІДКЛЮЧЕНО: Ініціалізуємо модуль компетенцій
 
     let stateRestored = loadAppState(); // Спробувати відновити стан
 
@@ -2932,9 +2932,10 @@ window.openRolesManager = openRolesManager;
 
 console.log("main.js завантажено та виконано");
 
-window.updateCompetenciesData = updateCompetenciesData;
+// window.updateCompetenciesData = updateCompetenciesData; // ВІДКЛЮЧЕНО
 
-// Глобальна функція для тестування модуля компетенцій
+// ВІДКЛЮЧЕНО: Глобальна функція для тестування модуля компетенцій
+/*
 window.testCompetenciesModule = () => {
     console.log('Тестування модуля компетенцій...');
     console.log('Поточний стан:', {
@@ -2945,7 +2946,7 @@ window.testCompetenciesModule = () => {
         userId: state.currentUserId
     });
     
-    updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId);
+    // updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId);
     
     // Перевіряємо чи існують елементи на сторінці компетенцій
     const competenciesPage = document.getElementById('competenciesPage');
@@ -2974,6 +2975,7 @@ window.testCompetenciesModule = () => {
         console.log('Сторінка компетенцій не знайдена');
     }
 };
+*/
 
 // === Универсальное переключение вкладок ===
 const tabIds = ['mainTab-assessment', 'mainTab-history', 'mainTab-reports', 'mainTab-settings'];
