@@ -840,34 +840,10 @@ function applyFilters() {
     
     if (departmentsData.length > 0 && managersData.length > 0) {
         console.log('✅ Використовуємо Firebase фільтрацію');
-        // Используем данные из Firebase
+        console.log('🔄 ВИПРАВЛЕННЯ: Послідовна фільтрація (спочатку відділ, потім менеджер)');
         
-        // Фильтрация по менеджеру (по ID)
-        if (managerFilter) {
-            console.log('🔍 Застосовуємо фільтр менеджера:', managerFilter);
-            const selectedManager = managersData.find(m => m.id === managerFilter);
-            console.log('🔍 Знайдений менеджер:', selectedManager);
-            console.log('🔍 Всі менеджери:', managersData.map(m => ({id: m.id, name: m.name})));
-            
-            if (selectedManager) {
-                const beforeCount = filteredData.length;
-                console.log('🔍 Фільтруємо по імені менеджера:', selectedManager.name);
-                console.log('🔍 Приклад імен менеджерів в даних:', [...new Set(debtsData.map(d => d.manager))]);
-                
-                filteredData = filteredData.filter(d => {
-                    const matches = d.manager === selectedManager.name;
-                    if (!matches) {
-                        console.log(`🔍 НЕ збігається: "${d.manager}" !== "${selectedManager.name}"`);
-                    }
-                    return matches;
-                });
-                console.log(`✅ Manager filter: ${beforeCount} → ${filteredData.length} записів`);
-            } else {
-                console.error('❌ Менеджер не знайдений за ID:', managerFilter);
-            }
-        }
-        
-        // Фильтрация по отделу (по ID)
+        // 1. СПОЧАТКУ фільтруємо по відділу, якщо він обраний
+        // Це звужує список потенційних менеджерів
         if (departmentFilter) {
             console.log('🔍 Застосовуємо фільтр відділу:', departmentFilter);
             const selectedDepartment = departmentsData.find(dept => dept.id === departmentFilter);
@@ -875,7 +851,7 @@ function applyFilters() {
             
             if (selectedDepartment) {
                 console.log('🔍 Шукаємо менеджерів відділу...');
-                const departmentManagers = managersData
+                const departmentManagersNames = managersData
                     .filter(manager => {
                         // Проверяем разные возможные поля для связи с отделом
                         const match1 = manager.departmentId === departmentFilter;
@@ -891,28 +867,56 @@ function applyFilters() {
                     })
                     .map(manager => manager.name);
                 
-                console.log('🔍 Менеджери відділу:', departmentManagers);
+                console.log('🔍 Менеджери відділу:', departmentManagersNames);
                 const beforeCount = filteredData.length;
-                filteredData = filteredData.filter(d => departmentManagers.includes(d.manager));
-                console.log(`✅ Department filter: ${beforeCount} → ${filteredData.length} записів`);
+                filteredData = filteredData.filter(debt => departmentManagersNames.includes(debt.manager));
+                console.log(`✅ Department filter: ${beforeCount} → ${filteredData.length} записів після фільтрації по відділу`);
             } else {
                 console.error('❌ Відділ не знайдений за ID:', departmentFilter);
             }
         }
+        
+        // 2. ПОТІМ, якщо обраний конкретний менеджер, фільтруємо ЩЕ РАЗ
+        // Цей фільтр буде застосований до даних, вже відфільтрованих по відділу (або до повного списку, якщо відділ не було обрано)
+        if (managerFilter) {
+            console.log('🔍 Застосовуємо фільтр менеджера:', managerFilter);
+            const selectedManager = managersData.find(m => m.id === managerFilter);
+            console.log('🔍 Знайдений менеджер:', selectedManager);
+            console.log('🔍 Всі менеджери:', managersData.map(m => ({id: m.id, name: m.name})));
+            
+            if (selectedManager) {
+                const beforeCount = filteredData.length;
+                console.log('🔍 Фільтруємо по імені менеджера:', selectedManager.name);
+                console.log('🔍 Приклад імен менеджерів в поточних даних:', [...new Set(filteredData.map(d => d.manager))]);
+                
+                filteredData = filteredData.filter(d => {
+                    const matches = d.manager === selectedManager.name;
+                    if (!matches && filteredData.length < 10) { // Логуємо тільки якщо даних небагато
+                        console.log(`🔍 НЕ збігається: "${d.manager}" !== "${selectedManager.name}"`);
+                    }
+                    return matches;
+                });
+                console.log(`✅ Manager filter: ${beforeCount} → ${filteredData.length} записів після фільтрації по менеджеру`);
+            } else {
+                console.error('❌ Менеджер не знайдений за ID:', managerFilter);
+            }
+        }
     } else {
         // Fallback: используем данные из API долгов (прямое сравнение по названиям)
-        console.log('⚠️ Використовуємо Fallback фільтрацію');
+        console.log('⚠️ Використовуємо Fallback фільтрацію (послідовно: відділ → менеджер)');
         
-        if (managerFilter) {
-            const beforeCount = filteredData.length;
-            filteredData = filteredData.filter(d => d.manager === managerFilter);
-            console.log(`Fallback manager filter: ${beforeCount} → ${filteredData.length} записів`);
-        }
-        
+        // 1. Сначала фильтруем по отделу
         if (departmentFilter) {
             const beforeCount = filteredData.length;
             filteredData = filteredData.filter(d => d.department === departmentFilter);
-            console.log(`Fallback department filter: ${beforeCount} → ${filteredData.length} записів`);
+            console.log(`Fallback department filter: ${beforeCount} → ${filteredData.length} записів після фільтрації по відділу`);
+        }
+        
+        // 2. Затем фильтруем по менеджеру (из уже отфильтрованных данных)
+        if (managerFilter) {
+            const beforeCount = filteredData.length;
+            filteredData = filteredData.filter(d => d.manager === managerFilter);
+            console.log(`Fallback manager filter: ${beforeCount} → ${filteredData.length} записів після фільтрації по менеджеру`);
         }
     }
     
