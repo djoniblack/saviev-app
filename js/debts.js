@@ -654,16 +654,30 @@ let debtsEventHandlers = {
     
     // Универсальный обработчик для всех событий
     universalHandler: function(e) {
+        console.log(`🎯 =================== DEBTS EVENT HANDLER ===================`);
         console.log(`🎯 DEBTS: ${e.type} event на ${e.target.id}:`, e.target.value);
+        console.log(`🎯 Event details:`, {
+            type: e.type,
+            target: e.target.tagName,
+            id: e.target.id,
+            value: e.target.value,
+            timestamp: new Date().toISOString()
+        });
         
         if (e.target.id === 'department-filter') {
+            console.log('🎯 Викликаємо updateManagersFilter() + applyFilters()');
             updateManagersFilter();
             applyFilters();
         } else if (e.target.id === 'manager-filter' || 
                    e.target.id === 'debt-type-filter' || 
                    e.target.id === 'sort-filter') {
+            console.log('🎯 Викликаємо applyFilters()');
             applyFilters();
+        } else {
+            console.log('🎯 Невідомий фільтр, ігноруємо');
         }
+        
+        console.log(`🎯 =================== DEBTS EVENT HANDLER END ===================`);
     }
 };
 
@@ -778,12 +792,31 @@ function updateManagersFilter() {
  * Применение фильтров
  */
 function applyFilters() {
+    console.log('🔍 =================== applyFilters ПОЧАТОК ===================');
     console.log('🔍 applyFilters викликано з debts.js');
     
-    const managerFilter = document.getElementById('manager-filter').value;
-    const departmentFilter = document.getElementById('department-filter').value;
-    const debtTypeFilter = document.getElementById('debt-type-filter').value;
-    const sortFilter = document.getElementById('sort-filter').value;
+    // Проверяем элементы фильтров
+    const managerFilterEl = document.getElementById('manager-filter');
+    const departmentFilterEl = document.getElementById('department-filter');
+    const debtTypeFilterEl = document.getElementById('debt-type-filter');
+    const sortFilterEl = document.getElementById('sort-filter');
+    
+    console.log('📋 Елементи фільтрів знайдені:', {
+        manager: !!managerFilterEl,
+        department: !!departmentFilterEl,
+        debtType: !!debtTypeFilterEl,
+        sort: !!sortFilterEl
+    });
+    
+    if (!managerFilterEl || !departmentFilterEl || !debtTypeFilterEl || !sortFilterEl) {
+        console.error('❌ Не всі елементи фільтрів знайдені! Виходимо з applyFilters');
+        return;
+    }
+    
+    const managerFilter = managerFilterEl.value;
+    const departmentFilter = departmentFilterEl.value;
+    const debtTypeFilter = debtTypeFilterEl.value;
+    const sortFilter = sortFilterEl.value;
     
     console.log('📊 Значення фільтрів:', {
         manager: managerFilter,
@@ -792,8 +825,16 @@ function applyFilters() {
         sort: sortFilter
     });
     
-    console.log('🔍 applyFilters викликано:', { managerFilter, departmentFilter, debtTypeFilter, sortFilter });
-    console.log('debtsData.length:', debtsData.length);
+    console.log('📊 Дані для фільтрації:', {
+        'debtsData.length': debtsData.length,
+        'managersData.length': managersData.length,
+        'departmentsData.length': departmentsData.length
+    });
+    
+    if (debtsData.length === 0) {
+        console.warn('⚠️ debtsData порожній! Нічого фільтрувати');
+        return;
+    }
     
     let filteredData = [...debtsData];
     
@@ -803,29 +844,59 @@ function applyFilters() {
         
         // Фильтрация по менеджеру (по ID)
         if (managerFilter) {
+            console.log('🔍 Застосовуємо фільтр менеджера:', managerFilter);
             const selectedManager = managersData.find(m => m.id === managerFilter);
-            console.log('Selected manager:', selectedManager);
+            console.log('🔍 Знайдений менеджер:', selectedManager);
+            console.log('🔍 Всі менеджери:', managersData.map(m => ({id: m.id, name: m.name})));
+            
             if (selectedManager) {
                 const beforeCount = filteredData.length;
-                filteredData = filteredData.filter(d => d.manager === selectedManager.name);
-                console.log(`Manager filter: ${beforeCount} → ${filteredData.length} записів`);
+                console.log('🔍 Фільтруємо по імені менеджера:', selectedManager.name);
+                console.log('🔍 Приклад імен менеджерів в даних:', [...new Set(debtsData.map(d => d.manager))]);
+                
+                filteredData = filteredData.filter(d => {
+                    const matches = d.manager === selectedManager.name;
+                    if (!matches) {
+                        console.log(`🔍 НЕ збігається: "${d.manager}" !== "${selectedManager.name}"`);
+                    }
+                    return matches;
+                });
+                console.log(`✅ Manager filter: ${beforeCount} → ${filteredData.length} записів`);
+            } else {
+                console.error('❌ Менеджер не знайдений за ID:', managerFilter);
             }
         }
         
         // Фильтрация по отделу (по ID)
         if (departmentFilter) {
+            console.log('🔍 Застосовуємо фільтр відділу:', departmentFilter);
             const selectedDepartment = departmentsData.find(dept => dept.id === departmentFilter);
+            console.log('🔍 Знайдений відділ:', selectedDepartment);
+            
             if (selectedDepartment) {
+                console.log('🔍 Шукаємо менеджерів відділу...');
                 const departmentManagers = managersData
                     .filter(manager => {
                         // Проверяем разные возможные поля для связи с отделом
-                        return manager.departmentId === departmentFilter ||
-                               manager.department === departmentFilter ||
-                               (manager.department && manager.department.id === departmentFilter);
+                        const match1 = manager.departmentId === departmentFilter;
+                        const match2 = manager.department === departmentFilter;
+                        const match3 = manager.department && manager.department.id === departmentFilter;
+                        const matches = match1 || match2 || match3;
+                        
+                        if (matches) {
+                            console.log(`🔍 Менеджер ${manager.name} належить відділу (${match1 ? 'departmentId' : match2 ? 'department' : 'department.id'})`);
+                        }
+                        
+                        return matches;
                     })
                     .map(manager => manager.name);
                 
+                console.log('🔍 Менеджери відділу:', departmentManagers);
+                const beforeCount = filteredData.length;
                 filteredData = filteredData.filter(d => departmentManagers.includes(d.manager));
+                console.log(`✅ Department filter: ${beforeCount} → ${filteredData.length} записів`);
+            } else {
+                console.error('❌ Відділ не знайдений за ID:', departmentFilter);
             }
         }
     } else {
@@ -870,8 +941,16 @@ function applyFilters() {
             break;
     }
     
+    console.log('🎯 Фінальний результат фільтрації:', {
+        'початкових записів': debtsData.length,
+        'після фільтрації': filteredData.length,
+        'фільтри': { managerFilter, departmentFilter, debtTypeFilter, sortFilter }
+    });
+    
     renderDebtsSummary(filteredData, false); // При фильтрации всегда используем уже загруженные данные
     renderDebtsGroupedByManager(filteredData);
+    
+    console.log('🔍 =================== applyFilters КІНЕЦЬ ===================');
 }
 
 /**
@@ -1009,8 +1088,18 @@ function renderDebtsTable(data = debtsData) {
  * Рендеринг дебиторки сгруппированной по менеджерам
  */
 function renderDebtsGroupedByManager(data = debtsData) {
+    console.log('🎨 =================== RENDER DEBTS START ===================');
+    console.log('🎨 renderDebtsGroupedByManager викликано з даними:', {
+        'data.length': data.length,
+        'перші 3 записи': data.slice(0, 3),
+        'унікальні менеджери': [...new Set(data.map(d => d.manager))]
+    });
+    
     const contentContainer = document.getElementById('debts-content-container');
-    if (!contentContainer) return;
+    if (!contentContainer) {
+        console.error('❌ debts-content-container не знайдений!');
+        return;
+    }
     
     // Группируем данные по менеджерам
     const groupedByManager = {};
@@ -1136,6 +1225,12 @@ function renderDebtsGroupedByManager(data = debtsData) {
             }).join('')}
         </div>
     `;
+    
+    console.log('🎨 Рендеринг завершено:', {
+        'менеджерів відображено': Object.keys(groupedByManager).length,
+        'загальна кількість клієнтів': data.length
+    });
+    console.log('🎨 =================== RENDER DEBTS END ===================');
 }
 
 /**
