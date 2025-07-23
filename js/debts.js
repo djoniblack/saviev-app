@@ -332,7 +332,7 @@ async function loadDebtsData() {
         hideLoadingState();
         renderDebtsFilters();
         renderDebtsSummary(debtsData, isUsingDemoData);
-        renderDebtsTable();
+        renderDebtsGroupedByManager();
         
     } catch (error) {
         console.error('Помилка завантаження дебіторки:', error);
@@ -594,7 +594,7 @@ function applyFilters() {
     }
     
     renderDebtsSummary(filteredData, false); // При фильтрации всегда используем уже загруженные данные
-    renderDebtsTable(filteredData);
+    renderDebtsGroupedByManager(filteredData);
 }
 
 /**
@@ -727,6 +727,154 @@ function renderDebtsTable(data = debtsData) {
         </div>
     `;
 }
+
+/**
+ * Рендеринг дебиторки сгруппированной по менеджерам
+ */
+function renderDebtsGroupedByManager(data = debtsData) {
+    const contentContainer = document.getElementById('debts-content-container');
+    if (!contentContainer) return;
+    
+    // Группируем данные по менеджерам
+    const groupedByManager = {};
+    data.forEach(debt => {
+        const managerName = debt.manager;
+        if (!groupedByManager[managerName]) {
+            groupedByManager[managerName] = {
+                manager: managerName,
+                department: debt.department,
+                clients: [],
+                totalDebt: 0,
+                overdueDebt: 0,
+                clientsCount: 0
+            };
+        }
+        
+        groupedByManager[managerName].clients.push(debt);
+        groupedByManager[managerName].totalDebt += debt.totalDebt;
+        groupedByManager[managerName].overdueDebt += debt.overdueDebt;
+        groupedByManager[managerName].clientsCount++;
+    });
+    
+    // Сортируем менеджеров по общей задолженности
+    const sortedManagers = Object.values(groupedByManager).sort((a, b) => b.totalDebt - a.totalDebt);
+    
+    contentContainer.innerHTML = `
+        <div class="space-y-6">
+            ${sortedManagers.map(managerGroup => `
+                <div class="bg-gray-700 rounded-lg overflow-hidden">
+                    <div class="bg-gray-800 p-4 cursor-pointer hover:bg-gray-750" onclick="toggleManagerGroup('${managerGroup.manager}')">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-4">
+                                <div>
+                                    <h3 class="text-lg font-bold text-white">${managerGroup.manager}</h3>
+                                    <p class="text-sm text-gray-400">${managerGroup.department}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-6">
+                                <div class="text-center">
+                                    <div class="text-lg font-bold text-white">${managerGroup.clientsCount}</div>
+                                    <div class="text-xs text-gray-400">Клієнтів</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-lg font-bold text-white">${formatCurrency(managerGroup.totalDebt)}</div>
+                                    <div class="text-xs text-gray-400">Загальний борг</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-lg font-bold ${managerGroup.overdueDebt > 0 ? 'text-red-400' : 'text-green-400'}">${formatCurrency(managerGroup.overdueDebt)}</div>
+                                    <div class="text-xs text-gray-400">Прострочений</div>
+                                </div>
+                                <div class="text-white">
+                                    <span id="arrow-${managerGroup.manager.replace(/[^a-zA-Z0-9]/g, '_')}">▼</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="clients-${managerGroup.manager.replace(/[^a-zA-Z0-9]/g, '_')}" class="hidden">
+                        <table class="w-full">
+                            <thead class="bg-gray-600">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-white">Клієнт</th>
+                                    <th class="px-4 py-3 text-right text-white">Загальний борг</th>
+                                    <th class="px-4 py-3 text-right text-white">Прострочений</th>
+                                    <th class="px-4 py-3 text-center text-white">Днів прострочки</th>
+                                    <th class="px-4 py-3 text-center text-white">Остання оплата</th>
+                                    <th class="px-4 py-3 text-center text-white">Статус</th>
+                                    <th class="px-4 py-3 text-center text-white">Дії</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${managerGroup.clients.sort((a, b) => b.totalDebt - a.totalDebt).map(debt => {
+                                    const hasComment = clientCommentsData.find(c => c.clientCode === debt.clientCode);
+                                    const hasForecast = paymentForecastsData.find(f => f.clientCode === debt.clientCode);
+                                    return `
+                                        <tr class="border-b border-gray-600 hover:bg-gray-600">
+                                            <td class="px-4 py-3 text-white">
+                                                <div class="font-medium">${debt.clientName}</div>
+                                                <div class="text-sm text-gray-400">${debt.clientCode}</div>
+                                                ${hasComment ? '<div class="text-xs text-blue-400">💬 Є коментар</div>' : ''}
+                                            </td>
+                                            <td class="px-4 py-3 text-right">
+                                                <span class="font-medium text-white">${formatCurrency(debt.totalDebt)}</span>
+                                            </td>
+                                            <td class="px-4 py-3 text-right">
+                                                <span class="font-medium ${debt.overdueDebt > 0 ? 'text-red-400' : 'text-green-400'}">
+                                                    ${formatCurrency(debt.overdueDebt)}
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-3 text-center">
+                                                <span class="px-2 py-1 rounded-full text-xs ${
+                                                    debt.daysOverdue === 0 ? 'bg-green-600 text-white' :
+                                                    debt.daysOverdue <= 30 ? 'bg-yellow-600 text-white' :
+                                                    debt.daysOverdue <= 60 ? 'bg-orange-600 text-white' :
+                                                    'bg-red-600 text-white'
+                                                }">
+                                                    ${debt.daysOverdue || 0}
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-3 text-center text-gray-200">${debt.lastPayment}</td>
+                                            <td class="px-4 py-3 text-center">
+                                                ${hasForecast ? 
+                                                    '<div class="text-xs text-green-400">📅 Є прогноз</div>' : 
+                                                    '<div class="text-xs text-gray-500">Без прогнозу</div>'
+                                                }
+                                            </td>
+                                            <td class="px-4 py-3 text-center">
+                                                <button onclick="showDebtDetails('${debt.clientCode}')" 
+                                                        class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+                                                    Деталі
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+/**
+ * Переключение видимости группы клиентов менеджера
+ */
+window.toggleManagerGroup = function(managerName) {
+    const managerId = managerName.replace(/[^a-zA-Z0-9]/g, '_');
+    const clientsDiv = document.getElementById(`clients-${managerId}`);
+    const arrow = document.getElementById(`arrow-${managerId}`);
+    
+    if (clientsDiv && arrow) {
+        if (clientsDiv.classList.contains('hidden')) {
+            clientsDiv.classList.remove('hidden');
+            arrow.textContent = '▲';
+        } else {
+            clientsDiv.classList.add('hidden');
+            arrow.textContent = '▼';
+        }
+    }
+};
 
 /**
  * Показать детали задолженности клиента
