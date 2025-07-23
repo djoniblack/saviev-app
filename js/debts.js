@@ -699,6 +699,12 @@ function setupDebtsEventHandlers() {
         sort: !!sortFilterEl
     });
     
+    // ДИАГНОСТИКА: проверяем что элементы существуют
+    if (!departmentFilterEl) console.error('❌ department-filter НЕ ЗНАЙДЕНИЙ!');
+    if (!managerFilterEl) console.error('❌ manager-filter НЕ ЗНАЙДЕНИЙ!');
+    if (!debtTypeFilterEl) console.error('❌ debt-type-filter НЕ ЗНАЙДЕНИЙ!');
+    if (!sortFilterEl) console.error('❌ sort-filter НЕ ЗНАЙДЕНИЙ!');
+    
     // Список всех типов событий для прослушивания
     const eventTypes = ['change', 'input', 'click'];
     
@@ -731,6 +737,21 @@ function setupDebtsEventHandlers() {
     setupMultiHandler(sortFilterEl, 'Sort filter');
     
     console.log('✅ Все обработчики событий установлены в capture phase');
+    
+    // ДИАГНОСТИКА: тестируем что обработчики действительно работают
+    console.log('🧪 ТЕСТИРОВАНИЕ обработчиков...');
+    if (managerFilterEl) {
+        console.log('🧪 Проверяем manager-filter...');
+        console.log('🧪 Current value:', managerFilterEl.value);
+        console.log('🧪 Options count:', managerFilterEl.options.length);
+        
+        // Принудительно вызываем событие для теста
+        setTimeout(() => {
+            console.log('🧪 Принудительно викликаємо change event...');
+            const testEvent = new Event('change', { bubbles: true });
+            managerFilterEl.dispatchEvent(testEvent);
+        }, 100);
+    }
 }
 
 /**
@@ -1579,4 +1600,37 @@ window.testDebtsFilters = function() {
     // Переустанавливаем обработчики
     console.log('🔧 Переустановка обработчиков...');
     setupDebtsEventHandlers();
+};
+
+// Функция для ручного тестирования событий фильтров
+window.testFilterEvents = function() {
+    console.log('🧪 =================== ТЕСТ СОБЫТИЙ ФИЛЬТРОВ ===================');
+    
+    const managerFilter = document.getElementById('manager-filter');
+    const departmentFilter = document.getElementById('department-filter');
+    
+    if (managerFilter) {
+        console.log('🧪 Тестируем manager-filter события...');
+        console.log('🧪 Текущее значение:', managerFilter.value);
+        
+        // Тест разных типов событий
+        ['change', 'input', 'click'].forEach(eventType => {
+            console.log(`🧪 Создаём ${eventType} event...`);
+            const event = new Event(eventType, { bubbles: true, cancelable: true });
+            managerFilter.dispatchEvent(event);
+        });
+    }
+    
+    if (departmentFilter) {
+        console.log('🧪 Тестируем department-filter события...');
+        console.log('🧪 Текущее значение:', departmentFilter.value);
+        
+        ['change', 'input', 'click'].forEach(eventType => {
+            console.log(`🧪 Создаём ${eventType} event...`);
+            const event = new Event(eventType, { bubbles: true, cancelable: true });
+            departmentFilter.dispatchEvent(event);
+        });
+    }
+    
+    console.log('🧪 =================== ТЕСТ СОБЫТИЙ ЗАВЕРШЕН ===================');
 };
