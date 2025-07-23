@@ -631,6 +631,43 @@ function renderDebtsFilters() {
 }
 
 /**
+ * Обработчики событий для фильтров (именованные функции для точного удаления)
+ */
+let debtsEventHandlers = {
+    departmentChange: function(e) {
+        console.log('🏢 Department filter changed FROM DEBTS.JS:', e.target.value);
+        updateManagersFilter();
+        applyFilters();
+    },
+    managerChange: function(e) {
+        console.log('👤 Manager filter changed FROM DEBTS.JS:', e.target.value);
+        applyFilters();
+    },
+    debtTypeChange: function(e) {
+        console.log('💰 Debt type filter changed FROM DEBTS.JS:', e.target.value);
+        applyFilters();
+    },
+    sortChange: function(e) {
+        console.log('🔄 Sort filter changed FROM DEBTS.JS:', e.target.value);
+        applyFilters();
+    },
+    
+    // Универсальный обработчик для всех событий
+    universalHandler: function(e) {
+        console.log(`🎯 DEBTS: ${e.type} event на ${e.target.id}:`, e.target.value);
+        
+        if (e.target.id === 'department-filter') {
+            updateManagersFilter();
+            applyFilters();
+        } else if (e.target.id === 'manager-filter' || 
+                   e.target.id === 'debt-type-filter' || 
+                   e.target.id === 'sort-filter') {
+            applyFilters();
+        }
+    }
+};
+
+/**
  * Установка обработчиков событий для фильтров (отдельная функция)
  */
 function setupDebtsEventHandlers() {
@@ -648,54 +685,38 @@ function setupDebtsEventHandlers() {
         sort: !!sortFilterEl
     });
     
-    // Убираем ВСЕ старые обработчики
-    if (departmentFilterEl) {
-        departmentFilterEl.onchange = null;
-        // Удаляем все addEventListener
-        const newDeptEl = departmentFilterEl.cloneNode(true);
-        departmentFilterEl.parentNode.replaceChild(newDeptEl, departmentFilterEl);
-        
-        newDeptEl.addEventListener('change', function(e) {
-            console.log('🏢 Department filter changed FROM DEBTS.JS:', e.target.value);
-            updateManagersFilter();
-            applyFilters();
-        });
-    }
+    // Список всех типов событий для прослушивания
+    const eventTypes = ['change', 'input', 'click'];
     
-    if (managerFilterEl) {
-        managerFilterEl.onchange = null;
-        const newMgrEl = managerFilterEl.cloneNode(true);
-        managerFilterEl.parentNode.replaceChild(newMgrEl, managerFilterEl);
+    // Функция для установки мульти-обработчиков
+    const setupMultiHandler = (element, elementName) => {
+        if (!element) return;
         
-        newMgrEl.addEventListener('change', function(e) {
-            console.log('👤 Manager filter changed FROM DEBTS.JS:', e.target.value);
-            applyFilters();
-        });
-    }
-    
-    if (debtTypeFilterEl) {
-        debtTypeFilterEl.onchange = null;
-        const newDebtEl = debtTypeFilterEl.cloneNode(true);
-        debtTypeFilterEl.parentNode.replaceChild(newDebtEl, debtTypeFilterEl);
+        console.log(`🔧 Настройка обработчиков для ${elementName}...`);
         
-        newDebtEl.addEventListener('change', function(e) {
-            console.log('💰 Debt type filter changed FROM DEBTS.JS:', e.target.value);
-            applyFilters();
+        // Удаляем все старые обработчики
+        eventTypes.forEach(eventType => {
+            element.removeEventListener(eventType, debtsEventHandlers.universalHandler);
         });
-    }
-    
-    if (sortFilterEl) {
-        sortFilterEl.onchange = null;
-        const newSortEl = sortFilterEl.cloneNode(true);
-        sortFilterEl.parentNode.replaceChild(newSortEl, sortFilterEl);
+        element.onchange = null;
+        element.oninput = null;
+        element.onclick = null;
         
-        newSortEl.addEventListener('change', function(e) {
-            console.log('🔄 Sort filter changed FROM DEBTS.JS:', e.target.value);
-            applyFilters();
+        // Добавляем новые обработчики
+        eventTypes.forEach(eventType => {
+            element.addEventListener(eventType, debtsEventHandlers.universalHandler, true);
         });
-    }
+        
+        console.log(`✅ ${elementName}: обработчики ${eventTypes.join(', ')} установлены`);
+    };
     
-    console.log('✅ Обработчики событий ПЕРЕУСТАНОВЛЕНЫ и защищены от конфликтов');
+    // Устанавливаем обработчики для всех фильтров
+    setupMultiHandler(departmentFilterEl, 'Department filter');
+    setupMultiHandler(managerFilterEl, 'Manager filter');
+    setupMultiHandler(debtTypeFilterEl, 'Debt type filter');
+    setupMultiHandler(sortFilterEl, 'Sort filter');
+    
+    console.log('✅ Все обработчики событий установлены в capture phase');
 }
 
 /**
@@ -1429,3 +1450,34 @@ function formatCurrency(amount) {
 window.loadDebtsData = loadDebtsData;
 window.applyDebtsFilters = applyFilters;
 window.setupDebtsEventHandlers = setupDebtsEventHandlers;
+
+// Функция для тестирования фильтров из консоли
+window.testDebtsFilters = function() {
+    console.log('🧪 Тестирование фильтров дебиторки...');
+    
+    // Проверяем наличие элементов
+    const elements = {
+        department: document.getElementById('department-filter'),
+        manager: document.getElementById('manager-filter'),
+        debtType: document.getElementById('debt-type-filter'),
+        sort: document.getElementById('sort-filter')
+    };
+    
+    console.log('📋 Элементы фильтров:', elements);
+    
+    // Проверяем значения
+    Object.keys(elements).forEach(key => {
+        const el = elements[key];
+        if (el) {
+            console.log(`📊 ${key}: value="${el.value}", options=${el.options.length}`);
+        }
+    });
+    
+    // Принудительно вызываем фильтрацию
+    console.log('🔄 Принудительный вызов applyFilters...');
+    applyFilters();
+    
+    // Переустанавливаем обработчики
+    console.log('🔧 Переустановка обработчиков...');
+    setupDebtsEventHandlers();
+};
