@@ -572,16 +572,23 @@ function applyFilters() {
     const debtTypeFilter = document.getElementById('debt-type-filter').value;
     const sortFilter = document.getElementById('sort-filter').value;
     
+    console.log('🔍 applyFilters викликано:', { managerFilter, departmentFilter, debtTypeFilter, sortFilter });
+    console.log('debtsData.length:', debtsData.length);
+    
     let filteredData = [...debtsData];
     
     if (departmentsData.length > 0 && managersData.length > 0) {
+        console.log('✅ Використовуємо Firebase фільтрацію');
         // Используем данные из Firebase
         
         // Фильтрация по менеджеру (по ID)
         if (managerFilter) {
             const selectedManager = managersData.find(m => m.id === managerFilter);
+            console.log('Selected manager:', selectedManager);
             if (selectedManager) {
+                const beforeCount = filteredData.length;
                 filteredData = filteredData.filter(d => d.manager === selectedManager.name);
+                console.log(`Manager filter: ${beforeCount} → ${filteredData.length} записів`);
             }
         }
         
@@ -603,13 +610,18 @@ function applyFilters() {
         }
     } else {
         // Fallback: используем данные из API долгов (прямое сравнение по названиям)
+        console.log('⚠️ Використовуємо Fallback фільтрацію');
         
         if (managerFilter) {
+            const beforeCount = filteredData.length;
             filteredData = filteredData.filter(d => d.manager === managerFilter);
+            console.log(`Fallback manager filter: ${beforeCount} → ${filteredData.length} записів`);
         }
         
         if (departmentFilter) {
+            const beforeCount = filteredData.length;
             filteredData = filteredData.filter(d => d.department === departmentFilter);
+            console.log(`Fallback department filter: ${beforeCount} → ${filteredData.length} записів`);
         }
     }
     
@@ -806,9 +818,12 @@ function renderDebtsGroupedByManager(data = debtsData) {
     
     contentContainer.innerHTML = `
         <div class="space-y-6">
-            ${sortedManagers.map(managerGroup => `
+            ${sortedManagers.map((managerGroup, index) => {
+                // Создаем уникальный ID для каждого менеджера используя индекс
+                const uniqueId = `manager_${index}_${(managerGroup.manager || 'unknown').replace(/[^a-zA-Z0-9]/g, '_')}`;
+                return `
                 <div class="bg-gray-700 rounded-lg overflow-hidden">
-                    <div class="bg-gray-800 p-4 cursor-pointer hover:bg-gray-750" onclick="toggleManagerGroup('${(managerGroup.manager || 'unknown').replace(/'/g, '\\\'')}')">
+                    <div class="bg-gray-800 p-4 cursor-pointer hover:bg-gray-750" onclick="toggleManagerGroup('${uniqueId}')">
                         <div class="flex justify-between items-center">
                             <div class="flex items-center gap-4">
                                 <div>
@@ -830,12 +845,12 @@ function renderDebtsGroupedByManager(data = debtsData) {
                                     <div class="text-xs text-gray-400">Прострочений</div>
                                 </div>
                                 <div class="text-white">
-                                    <span id="arrow-${(managerGroup.manager || 'unknown').replace(/[^a-zA-Z0-9]/g, '_')}">▼</span>
+                                    <span id="arrow-${uniqueId}">▼</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div id="clients-${(managerGroup.manager || 'unknown').replace(/[^a-zA-Z0-9]/g, '_')}" class="hidden">
+                    <div id="clients-${uniqueId}" class="hidden">
                         <table class="w-full">
                             <thead class="bg-gray-600">
                                 <tr>
@@ -897,7 +912,8 @@ function renderDebtsGroupedByManager(data = debtsData) {
                         </table>
                     </div>
                 </div>
-            `).join('')}
+                `;
+            }).join('')}
         </div>
     `;
 }
@@ -905,19 +921,25 @@ function renderDebtsGroupedByManager(data = debtsData) {
 /**
  * Переключение видимости группы клиентов менеджера
  */
-window.toggleManagerGroup = function(managerName) {
-    const managerId = (managerName || 'unknown').replace(/[^a-zA-Z0-9]/g, '_');
-    const clientsDiv = document.getElementById(`clients-${managerId}`);
-    const arrow = document.getElementById(`arrow-${managerId}`);
+window.toggleManagerGroup = function(uniqueId) {
+    console.log('🔄 toggleManagerGroup викликано для:', uniqueId);
+    const clientsDiv = document.getElementById(`clients-${uniqueId}`);
+    const arrow = document.getElementById(`arrow-${uniqueId}`);
+    
+    console.log('Elements found:', { clientsDiv: !!clientsDiv, arrow: !!arrow });
     
     if (clientsDiv && arrow) {
         if (clientsDiv.classList.contains('hidden')) {
             clientsDiv.classList.remove('hidden');
             arrow.textContent = '▲';
+            console.log('✅ Список клієнтів розкрито');
         } else {
             clientsDiv.classList.add('hidden');
             arrow.textContent = '▼';
+            console.log('✅ Список клієнтів згорнуто');
         }
+    } else {
+        console.error('❌ Не знайдено елементи для', uniqueId);
     }
 };
 
