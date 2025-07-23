@@ -630,15 +630,7 @@ function setupDebtsEventHandlers() {
     
     console.log('✅ Обробники подій "change" встановлені.');
     
-    // ТЕСТ: принудительный вызов для проверки
-    if (managerFilterEl) {
-        setTimeout(() => {
-            console.log('🧪 Тестовый вызов handleFilterChange...');
-            const testEvent = new Event('change', { bubbles: true });
-            Object.defineProperty(testEvent, 'target', { value: managerFilterEl });
-            managerFilterEl.dispatchEvent(testEvent);
-        }, 100);
-    }
+    // ✂️ ТЕСТОВЫЙ БЛОК УДАЛЕН: больше никаких автоматических вызовов фильтрации
 }
 
 /**
