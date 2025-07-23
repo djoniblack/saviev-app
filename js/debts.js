@@ -157,10 +157,10 @@ function transformApiDataToInternalFormat(apiData) {
         
         if (!clientsMap.has(clientCode)) {
             clientsMap.set(clientCode, {
-                clientCode: clientCode,
-                clientName: clientName,
-                manager: manager,
-                department: getManagerDepartment(manager),
+                clientCode: clientCode || '',
+                clientName: clientName || 'Невизначений клієнт',
+                manager: manager || 'Невизначений менеджер',
+                department: getManagerDepartment(manager) || 'Невизначений відділ',
                 totalDebt: 0,
                 overdueDebt: 0,
                 currentDebt: 0,
@@ -783,11 +783,11 @@ function renderDebtsGroupedByManager(data = debtsData) {
     // Группируем данные по менеджерам
     const groupedByManager = {};
     data.forEach(debt => {
-        const managerName = debt.manager;
+        const managerName = debt.manager || 'Не вказано';
         if (!groupedByManager[managerName]) {
             groupedByManager[managerName] = {
                 manager: managerName,
-                department: debt.department,
+                department: debt.department || 'Не вказано',
                 clients: [],
                 totalDebt: 0,
                 overdueDebt: 0,
@@ -796,8 +796,8 @@ function renderDebtsGroupedByManager(data = debtsData) {
         }
         
         groupedByManager[managerName].clients.push(debt);
-        groupedByManager[managerName].totalDebt += debt.totalDebt;
-        groupedByManager[managerName].overdueDebt += debt.overdueDebt;
+        groupedByManager[managerName].totalDebt += debt.totalDebt || 0;
+        groupedByManager[managerName].overdueDebt += debt.overdueDebt || 0;
         groupedByManager[managerName].clientsCount++;
     });
     
@@ -808,7 +808,7 @@ function renderDebtsGroupedByManager(data = debtsData) {
         <div class="space-y-6">
             ${sortedManagers.map(managerGroup => `
                 <div class="bg-gray-700 rounded-lg overflow-hidden">
-                    <div class="bg-gray-800 p-4 cursor-pointer hover:bg-gray-750" onclick="toggleManagerGroup('${managerGroup.manager}')">
+                    <div class="bg-gray-800 p-4 cursor-pointer hover:bg-gray-750" onclick="toggleManagerGroup('${(managerGroup.manager || 'unknown').replace(/'/g, '\\\'')}')">
                         <div class="flex justify-between items-center">
                             <div class="flex items-center gap-4">
                                 <div>
@@ -830,12 +830,12 @@ function renderDebtsGroupedByManager(data = debtsData) {
                                     <div class="text-xs text-gray-400">Прострочений</div>
                                 </div>
                                 <div class="text-white">
-                                    <span id="arrow-${managerGroup.manager.replace(/[^a-zA-Z0-9]/g, '_')}">▼</span>
+                                    <span id="arrow-${(managerGroup.manager || 'unknown').replace(/[^a-zA-Z0-9]/g, '_')}">▼</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div id="clients-${managerGroup.manager.replace(/[^a-zA-Z0-9]/g, '_')}" class="hidden">
+                    <div id="clients-${(managerGroup.manager || 'unknown').replace(/[^a-zA-Z0-9]/g, '_')}" class="hidden">
                         <table class="w-full">
                             <thead class="bg-gray-600">
                                 <tr>
@@ -906,7 +906,7 @@ function renderDebtsGroupedByManager(data = debtsData) {
  * Переключение видимости группы клиентов менеджера
  */
 window.toggleManagerGroup = function(managerName) {
-    const managerId = managerName.replace(/[^a-zA-Z0-9]/g, '_');
+    const managerId = (managerName || 'unknown').replace(/[^a-zA-Z0-9]/g, '_');
     const clientsDiv = document.getElementById(`clients-${managerId}`);
     const arrow = document.getElementById(`arrow-${managerId}`);
     
