@@ -7,16 +7,20 @@ import { initFocusPage } from './focus.js';
 import { loadClientManagerDirectory } from './main.js';
 import { initDepartmentDashboard } from './departmentDashboard.js';
 import { initSmartDayModule } from './smartDay.js';
+import { initDebtsModule } from './debts.js';
+import { initPlanFactModule } from './planFact.js';
 
 export function initSalesAssistantPage(container) {
     container.innerHTML = `
-        <div class="flex gap-4 mb-4">
+        <div class="flex gap-2 mb-4 flex-wrap">
             <button id="assistantTabBtn" class="btn btn-primary">Помічник</button>
             <button id="signalizationTabBtn" class="btn btn-secondary">Сигналізація</button>
             <button id="dashboardTabBtn" class="btn btn-secondary">Головний дашборд</button>
             <button id="departmentDashboardTabBtn" class="btn btn-secondary">Дашборд по відділах</button>
             <button id="focusTabBtn" class="btn btn-secondary">Фокус</button>
             <button id="smartDayTabBtn" class="btn btn-secondary">Створи мій день</button>
+            <button id="debtsTabBtn" class="btn btn-secondary">Дебіторка</button>
+            <button id="planFactTabBtn" class="btn btn-secondary">План-Факт</button>
         </div>
         <div id="salesAssistantMain"></div>
         <div id="alerts-root" class="hidden"></div>
@@ -24,6 +28,8 @@ export function initSalesAssistantPage(container) {
         <div id="department-dashboard-root" class="hidden"></div>
         <div id="focus-root" class="hidden"></div>
         <div id="smartday-root" class="hidden"></div>
+        <div id="debts-root" class="hidden"></div>
+        <div id="planfact-root" class="hidden"></div>
     `;
 
     const assistantTabBtn = container.querySelector('#assistantTabBtn');
@@ -32,6 +38,8 @@ export function initSalesAssistantPage(container) {
     const departmentDashboardTabBtn = container.querySelector('#departmentDashboardTabBtn');
     const focusTabBtn = container.querySelector('#focusTabBtn');
     const smartDayTabBtn = container.querySelector('#smartDayTabBtn');
+    const debtsTabBtn = container.querySelector('#debtsTabBtn');
+    const planFactTabBtn = container.querySelector('#planFactTabBtn');
     
     const mainBlock = container.querySelector('#salesAssistantMain');
     const alertsRoot = container.querySelector('#alerts-root');
@@ -39,15 +47,19 @@ export function initSalesAssistantPage(container) {
     const departmentDashboardRoot = container.querySelector('#department-dashboard-root');
     const focusRoot = container.querySelector('#focus-root');
     const smartDayRoot = container.querySelector('#smartday-root');
+    const debtsRoot = container.querySelector('#debts-root');
+    const planFactRoot = container.querySelector('#planfact-root');
     
     let alertsInited = false;
     let dashboardInited = false;
     let departmentDashboardInited = false;
     let focusInited = false;
     let smartDayInited = false;
+    let debtsInited = false;
+    let planFactInited = false;
 
     function setActiveTab(activeBtn) {
-        const allBtns = [assistantTabBtn, signalizationTabBtn, dashboardTabBtn, departmentDashboardTabBtn, focusTabBtn, smartDayTabBtn];
+        const allBtns = [assistantTabBtn, signalizationTabBtn, dashboardTabBtn, departmentDashboardTabBtn, focusTabBtn, smartDayTabBtn, debtsTabBtn, planFactTabBtn];
         allBtns.forEach(btn => {
             btn.classList.remove('btn-primary');
             btn.classList.add('btn-secondary');
@@ -61,6 +73,8 @@ export function initSalesAssistantPage(container) {
         departmentDashboardRoot.classList.add('hidden');
         focusRoot.classList.add('hidden');
         smartDayRoot.classList.add('hidden');
+        debtsRoot.classList.add('hidden');
+        planFactRoot.classList.add('hidden');
     }
 
     function showAssistantTab() {
@@ -108,6 +122,22 @@ export function initSalesAssistantPage(container) {
             smartDayInited = true;
         }
     }
+    function showDebtsTab() {
+        setActiveTab(debtsTabBtn);
+        debtsRoot.classList.remove('hidden');
+        if (!debtsInited) {
+            initDebtsModule(debtsRoot);
+            debtsInited = true;
+        }
+    }
+    function showPlanFactTab() {
+        setActiveTab(planFactTabBtn);
+        planFactRoot.classList.remove('hidden');
+        if (!planFactInited) {
+            initPlanFactModule(planFactRoot);
+            planFactInited = true;
+        }
+    }
 
     assistantTabBtn.onclick = showAssistantTab;
     signalizationTabBtn.onclick = showSignalizationTab;
@@ -115,6 +145,8 @@ export function initSalesAssistantPage(container) {
     departmentDashboardTabBtn.onclick = showDepartmentDashboardTab;
     focusTabBtn.onclick = showFocusTab;
     smartDayTabBtn.onclick = showSmartDayTab;
+    debtsTabBtn.onclick = showDebtsTab;
+    planFactTabBtn.onclick = showPlanFactTab;
     showAssistantTab(); // По умолчанию
 }
 
