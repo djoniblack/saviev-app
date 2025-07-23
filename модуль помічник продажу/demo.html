@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Демо підмодулів - Дебіторка та План-Факт</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .dark-input {
+            @apply bg-gray-700 border border-gray-600 text-white rounded px-3 py-2;
+        }
+        .tab-button.active {
+            @apply bg-white text-gray-900;
+        }
+        .tab-button:not(.active) {
+            @apply text-gray-300 hover:text-white;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold mb-2">Демо нових підмодулів</h1>
+            <p class="text-gray-400">Дебіторська заборгованість та План-Факт</p>
+        </header>
+
+        <!-- Навигация между модулями -->
+        <div class="mb-8">
+            <div class="flex justify-center space-x-4">
+                <button onclick="showModule('debts')" id="btn-debts" 
+                        class="module-btn px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                    📊 Дебіторська заборгованість
+                </button>
+                <button onclick="showModule('planfact')" id="btn-planfact" 
+                        class="module-btn px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium">
+                    🎯 План-Факт
+                </button>
+            </div>
+        </div>
+
+        <!-- Контейнеры для модулей -->
+        <div id="debts-module" class="module-container"></div>
+        <div id="planfact-module" class="module-container hidden"></div>
+
+        <!-- Информация о демо -->
+        <footer class="mt-12 p-6 bg-gray-800 rounded-lg">
+            <h3 class="text-lg font-bold mb-3">ℹ️ Про демо версію:</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                <div>
+                    <h4 class="font-semibold text-blue-400 mb-2">Дебіторська заборгованість:</h4>
+                    <ul class="space-y-1 text-gray-300">
+                        <li>• Демо дані з 3 клієнтами та їх заборгованостями</li>
+                        <li>• Фільтрація по менеджерам та відділам</li>
+                        <li>• Детальний перегляд рахунків та термінів</li>
+                        <li>• Можливість залишати коментарі та прогнози оплат</li>
+                        <li>• В майбутньому: API інтеграція з обліковою системою</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-green-400 mb-2">План-Факт:</h4>
+                    <ul class="space-y-1 text-gray-300">
+                        <li>• Конструктор планів з різними типами цілей</li>
+                        <li>• Дашборд виконання з прогнозуванням</li>
+                        <li>• Підтримка грошових та кількісних планів</li>
+                        <li>• Можливість створювати плани по групах товарів</li>
+                        <li>• В майбутньому: інтеграція з даними продаж</li>
+                    </ul>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Скрипты для имитации Firebase -->
+    <script>
+        // Имитация window.state для демо
+        window.state = {
+            currentCompanyId: 'demo-company',
+            currentUserId: 'demo-user'
+        };
+
+        // Имитация Firebase для демо
+        window.firebase = {
+            getDocs: async (collection) => {
+                console.log('Mock Firebase getDocs called for:', collection);
+                return {
+                    docs: [
+                        {
+                            id: 'mgr-1',
+                            data: () => ({ name: 'Іванов Іван', department: 'dept-1' })
+                        },
+                        {
+                            id: 'mgr-2', 
+                            data: () => ({ name: 'Петров Петро', department: 'dept-1' })
+                        },
+                        {
+                            id: 'mgr-3',
+                            data: () => ({ name: 'Сидоров Сидор', department: 'dept-2' })
+                        }
+                    ]
+                };
+            },
+            collection: (db, ...path) => {
+                console.log('Mock Firebase collection called for:', path.join('/'));
+                return path.join('/');
+            },
+            db: 'mock-db'
+        };
+
+        // Функции переключения модулей
+        function showModule(moduleName) {
+            // Скрываем все модули
+            document.querySelectorAll('.module-container').forEach(container => {
+                container.classList.add('hidden');
+            });
+
+            // Обновляем кнопки
+            document.querySelectorAll('.module-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'bg-green-600');
+                btn.classList.add('bg-gray-600');
+            });
+
+            // Показываем выбранный модуль
+            const targetContainer = document.getElementById(`${moduleName}-module`);
+            targetContainer.classList.remove('hidden');
+
+            // Активируем кнопку
+            const targetBtn = document.getElementById(`btn-${moduleName}`);
+            targetBtn.classList.remove('bg-gray-600');
+            if (moduleName === 'debts') {
+                targetBtn.classList.add('bg-blue-600');
+                if (typeof window.initDebtsModule === 'function') {
+                    window.initDebtsModule(targetContainer);
+                }
+            } else if (moduleName === 'planfact') {
+                targetBtn.classList.add('bg-green-600');
+                if (typeof window.initPlanFactModule === 'function') {
+                    window.initPlanFactModule(targetContainer);
+                }
+            }
+        }
+
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            // Показываем модуль дебиторки по умолчанию
+            showModule('debts');
+        });
+    </script>
+
+    <!-- Подключение модулей -->
+    <script type="module" src="debts.js"></script>
+    <script type="module" src="plan-fact.js"></script>
+</body>
+</html>
