@@ -584,15 +584,29 @@ function renderDebtsFilters() {
 function handleFilterChange(event) {
     console.log(`🎯 Спрацював фільтр: ${event.target.id}, значення: ${event.target.value}`);
     
+    // Получаем ссылки на все фильтры
+    const departmentFilterEl = document.getElementById('department-filter');
+    const managerFilterEl = document.getElementById('manager-filter');
+    const debtTypeFilterEl = document.getElementById('debt-type-filter');
+    const sortFilterEl = document.getElementById('sort-filter');
+    
     // Если изменился фильтр отделов, нужно обновить список менеджеров
     if (event.target.id === 'department-filter') {
         console.log('🏢 Оновлюємо список менеджерів...');
-        updateManagersFilter();
+        updateManagersFilter(); // Эта функция может изменить managerFilterEl.value
     }
     
-    // В любом случае применяем все фильтры
-    console.log('🔄 Застосовуємо фільтри...');
-    applyFilters();
+    // Собираем АКТУАЛЬНЫЕ значения ПОСЛЕ всех манипуляций
+    const currentFilters = {
+        department: departmentFilterEl.value,
+        manager: managerFilterEl.value,
+        debtType: debtTypeFilterEl.value,
+        sort: sortFilterEl.value
+    };
+    
+    // Передаем актуальные значения в applyFilters
+    console.log('🔄 Застосовуємо фільтри з актуальними значеннями...', currentFilters);
+    applyFilters(currentFilters);
 }
 
 /**
@@ -690,12 +704,13 @@ function updateManagersFilter() {
 
 /**
  * Применение фильтров
+ * @param {object} filters - Объект с текущими значениями фильтров
  */
-function applyFilters() {
+function applyFilters(filters = {}) {
     console.log('🔍 =================== applyFilters ПОЧАТОК ===================');
     console.log('🔍 applyFilters викликано з debts.js');
     
-    // Проверяем элементы фильтров
+    // Проверяем элементы фильтров (для обратной совместимости)
     const managerFilterEl = document.getElementById('manager-filter');
     const departmentFilterEl = document.getElementById('department-filter');
     const debtTypeFilterEl = document.getElementById('debt-type-filter');
@@ -713,17 +728,20 @@ function applyFilters() {
         return;
     }
     
-    const managerFilter = managerFilterEl.value;
-    const departmentFilter = departmentFilterEl.value;
-    const debtTypeFilter = debtTypeFilterEl.value;
-    const sortFilter = sortFilterEl.value;
+    // Получаем значения из аргументов, а если их нет — из DOM (для обратной совместимости)
+    const managerFilter = filters.manager ?? managerFilterEl.value;
+    const departmentFilter = filters.department ?? departmentFilterEl.value;
+    const debtTypeFilter = filters.debtType ?? debtTypeFilterEl.value;
+    const sortFilter = filters.sort ?? sortFilterEl.value;
     
-    console.log('📊 Значення фільтрів:', {
+    console.log('📊 Актуальні значення фільтрів:', {
         manager: managerFilter,
         department: departmentFilter,
         debtType: debtTypeFilter,
         sort: sortFilter
     });
+    
+    console.log('📊 Джерело значень:', filters.manager !== undefined ? 'з параметрів' : 'з DOM');
     
     console.log('📊 Дані для фільтрації:', {
         'debtsData.length': debtsData.length,
