@@ -425,6 +425,17 @@ export async function loadDebtsData() {
         renderDebtsSummary(debtsData, isUsingDemoData);
         renderDebtsGroupedByManager();
         
+        // Переустанавливаем обработчики событий через небольшой таймаут
+        // чтобы убедиться что они не перезатёрлись другими модулями
+        setTimeout(() => {
+            // Проверяем что мы на странице дебиторки
+            const debtsContainer = document.getElementById('debts-list');
+            if (debtsContainer && debtsContainer.style.display !== 'none') {
+                console.log('🔄 Переустановка обработчиков событий на странице дебиторки...');
+                setupDebtsEventHandlers();
+            }
+        }, 100);
+        
     } catch (error) {
         console.error('Помилка завантаження дебіторки:', error);
         showErrorState('Помилка завантаження даних');
@@ -575,13 +586,116 @@ function renderDebtsFilters() {
     `;
     
     // Обработчики фильтров
-    document.getElementById('department-filter').onchange = () => {
-        updateManagersFilter();
-        applyFilters();
-    };
-    document.getElementById('manager-filter').onchange = applyFilters;
-    document.getElementById('debt-type-filter').onchange = applyFilters;
-    document.getElementById('sort-filter').onchange = applyFilters;
+    console.log('🔧 Настройка обработчиков событий для фильтров');
+    
+    const departmentFilterEl = document.getElementById('department-filter');
+    const managerFilterEl = document.getElementById('manager-filter');
+    const debtTypeFilterEl = document.getElementById('debt-type-filter');
+    const sortFilterEl = document.getElementById('sort-filter');
+    
+    // Убираем старые обработчики если есть
+    if (departmentFilterEl) {
+        departmentFilterEl.onchange = null;
+        departmentFilterEl.addEventListener('change', function(e) {
+            console.log('🏢 Department filter changed:', e.target.value);
+            updateManagersFilter();
+            applyFilters();
+        });
+    }
+    
+    if (managerFilterEl) {
+        managerFilterEl.onchange = null;
+        managerFilterEl.addEventListener('change', function(e) {
+            console.log('👤 Manager filter changed:', e.target.value);
+            applyFilters();
+        });
+    }
+    
+    if (debtTypeFilterEl) {
+        debtTypeFilterEl.onchange = null;
+        debtTypeFilterEl.addEventListener('change', function(e) {
+            console.log('💰 Debt type filter changed:', e.target.value);
+            applyFilters();
+        });
+    }
+    
+    if (sortFilterEl) {
+        sortFilterEl.onchange = null;
+        sortFilterEl.addEventListener('change', function(e) {
+            console.log('🔄 Sort filter changed:', e.target.value);
+            applyFilters();
+        });
+    }
+    
+    console.log('✅ Обработчики событий установлены');
+}
+
+/**
+ * Установка обработчиков событий для фильтров (отдельная функция)
+ */
+function setupDebtsEventHandlers() {
+    console.log('🔧 setupDebtsEventHandlers: Настройка обработчиков событий');
+    
+    const departmentFilterEl = document.getElementById('department-filter');
+    const managerFilterEl = document.getElementById('manager-filter');
+    const debtTypeFilterEl = document.getElementById('debt-type-filter');
+    const sortFilterEl = document.getElementById('sort-filter');
+    
+    console.log('📋 Найденные элементы фильтров:', {
+        department: !!departmentFilterEl,
+        manager: !!managerFilterEl,
+        debtType: !!debtTypeFilterEl,
+        sort: !!sortFilterEl
+    });
+    
+    // Убираем ВСЕ старые обработчики
+    if (departmentFilterEl) {
+        departmentFilterEl.onchange = null;
+        // Удаляем все addEventListener
+        const newDeptEl = departmentFilterEl.cloneNode(true);
+        departmentFilterEl.parentNode.replaceChild(newDeptEl, departmentFilterEl);
+        
+        newDeptEl.addEventListener('change', function(e) {
+            console.log('🏢 Department filter changed FROM DEBTS.JS:', e.target.value);
+            updateManagersFilter();
+            applyFilters();
+        });
+    }
+    
+    if (managerFilterEl) {
+        managerFilterEl.onchange = null;
+        const newMgrEl = managerFilterEl.cloneNode(true);
+        managerFilterEl.parentNode.replaceChild(newMgrEl, managerFilterEl);
+        
+        newMgrEl.addEventListener('change', function(e) {
+            console.log('👤 Manager filter changed FROM DEBTS.JS:', e.target.value);
+            applyFilters();
+        });
+    }
+    
+    if (debtTypeFilterEl) {
+        debtTypeFilterEl.onchange = null;
+        const newDebtEl = debtTypeFilterEl.cloneNode(true);
+        debtTypeFilterEl.parentNode.replaceChild(newDebtEl, debtTypeFilterEl);
+        
+        newDebtEl.addEventListener('change', function(e) {
+            console.log('💰 Debt type filter changed FROM DEBTS.JS:', e.target.value);
+            applyFilters();
+        });
+    }
+    
+    if (sortFilterEl) {
+        sortFilterEl.onchange = null;
+        const newSortEl = sortFilterEl.cloneNode(true);
+        sortFilterEl.parentNode.replaceChild(newSortEl, sortFilterEl);
+        
+        newSortEl.addEventListener('change', function(e) {
+            console.log('🔄 Sort filter changed FROM DEBTS.JS:', e.target.value);
+            applyFilters();
+        });
+    }
+    
+    console.log('✅ Обработчики событий ПЕРЕУСТАНОВЛЕНЫ и защищены от конфликтов');
 }
 
 /**
@@ -643,10 +757,19 @@ function updateManagersFilter() {
  * Применение фильтров
  */
 function applyFilters() {
+    console.log('🔍 applyFilters викликано з debts.js');
+    
     const managerFilter = document.getElementById('manager-filter').value;
     const departmentFilter = document.getElementById('department-filter').value;
     const debtTypeFilter = document.getElementById('debt-type-filter').value;
     const sortFilter = document.getElementById('sort-filter').value;
+    
+    console.log('📊 Значення фільтрів:', {
+        manager: managerFilter,
+        department: departmentFilter,
+        debtType: debtTypeFilter,
+        sort: sortFilter
+    });
     
     console.log('🔍 applyFilters викликано:', { managerFilter, departmentFilter, debtTypeFilter, sortFilter });
     console.log('debtsData.length:', debtsData.length);
@@ -1302,5 +1425,7 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
-// Глобальный доступ к функции загрузки
+// Глобальный доступ к функциям
 window.loadDebtsData = loadDebtsData;
+window.applyDebtsFilters = applyFilters;
+window.setupDebtsEventHandlers = setupDebtsEventHandlers;
