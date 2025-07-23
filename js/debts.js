@@ -421,20 +421,10 @@ export async function loadDebtsData() {
         }
         
         hideLoadingState();
-        renderDebtsFilters();
+        renderDebtsFilters();        // Рендерит HTML фильтров
+        setupDebtsEventHandlers();   // СРАЗУ ПОСЛЕ ЭТОГО назначает обработчики
         renderDebtsSummary(debtsData, isUsingDemoData);
         renderDebtsGroupedByManager();
-        
-        // Переустанавливаем обработчики событий через небольшой таймаут
-        // чтобы убедиться что они не перезатёрлись другими модулями
-        setTimeout(() => {
-            // Проверяем что мы на странице дебиторки
-            const debtsContainer = document.getElementById('debts-list');
-            if (debtsContainer && debtsContainer.style.display !== 'none') {
-                console.log('🔄 Переустановка обработчиков событий на странице дебиторки...');
-                setupDebtsEventHandlers();
-            }
-        }, 100);
         
     } catch (error) {
         console.error('Помилка завантаження дебіторки:', error);
@@ -585,107 +575,31 @@ function renderDebtsFilters() {
         </div>
     `;
     
-    // Обработчики фильтров
-    console.log('🔧 Настройка обработчиков событий для фильтров');
-    
-    const departmentFilterEl = document.getElementById('department-filter');
-    const managerFilterEl = document.getElementById('manager-filter');
-    const debtTypeFilterEl = document.getElementById('debt-type-filter');
-    const sortFilterEl = document.getElementById('sort-filter');
-    
-    // Убираем старые обработчики если есть
-    if (departmentFilterEl) {
-        departmentFilterEl.onchange = null;
-        departmentFilterEl.addEventListener('change', function(e) {
-            console.log('🏢 Department filter changed:', e.target.value);
-            updateManagersFilter();
-            applyFilters();
-        });
-    }
-    
-    if (managerFilterEl) {
-        managerFilterEl.onchange = null;
-        managerFilterEl.addEventListener('change', function(e) {
-            console.log('👤 Manager filter changed:', e.target.value);
-            applyFilters();
-        });
-    }
-    
-    if (debtTypeFilterEl) {
-        debtTypeFilterEl.onchange = null;
-        debtTypeFilterEl.addEventListener('change', function(e) {
-            console.log('💰 Debt type filter changed:', e.target.value);
-            applyFilters();
-        });
-    }
-    
-    if (sortFilterEl) {
-        sortFilterEl.onchange = null;
-        sortFilterEl.addEventListener('change', function(e) {
-            console.log('🔄 Sort filter changed:', e.target.value);
-            applyFilters();
-        });
-    }
-    
-    console.log('✅ Обработчики событий установлены');
+    // ✂️ УДАЛЕНО: Обработчики событий теперь устанавливаются только в setupDebtsEventHandlers()
 }
 
 /**
- * Обработчики событий для фильтров (именованные функции для точного удаления)
+ * Обработчик, который будет вызываться при любом изменении фильтров.
  */
-let debtsEventHandlers = {
-    departmentChange: function(e) {
-        console.log('🏢 Department filter changed FROM DEBTS.JS:', e.target.value);
-        updateManagersFilter();
-        applyFilters();
-    },
-    managerChange: function(e) {
-        console.log('👤 Manager filter changed FROM DEBTS.JS:', e.target.value);
-        applyFilters();
-    },
-    debtTypeChange: function(e) {
-        console.log('💰 Debt type filter changed FROM DEBTS.JS:', e.target.value);
-        applyFilters();
-    },
-    sortChange: function(e) {
-        console.log('🔄 Sort filter changed FROM DEBTS.JS:', e.target.value);
-        applyFilters();
-    },
+function handleFilterChange(event) {
+    console.log(`🎯 Спрацював фільтр: ${event.target.id}, значення: ${event.target.value}`);
     
-    // Универсальный обработчик для всех событий
-    universalHandler: function(e) {
-        console.log(`🎯 =================== DEBTS EVENT HANDLER ===================`);
-        console.log(`🎯 DEBTS: ${e.type} event на ${e.target.id}:`, e.target.value);
-        console.log(`🎯 Event details:`, {
-            type: e.type,
-            target: e.target.tagName,
-            id: e.target.id,
-            value: e.target.value,
-            timestamp: new Date().toISOString()
-        });
-        
-        if (e.target.id === 'department-filter') {
-            console.log('🎯 Викликаємо updateManagersFilter() + applyFilters()');
-            updateManagersFilter();
-            applyFilters();
-        } else if (e.target.id === 'manager-filter' || 
-                   e.target.id === 'debt-type-filter' || 
-                   e.target.id === 'sort-filter') {
-            console.log('🎯 Викликаємо applyFilters()');
-            applyFilters();
-        } else {
-            console.log('🎯 Невідомий фільтр, ігноруємо');
-        }
-        
-        console.log(`🎯 =================== DEBTS EVENT HANDLER END ===================`);
+    // Если изменился фильтр отделов, нужно обновить список менеджеров
+    if (event.target.id === 'department-filter') {
+        console.log('🏢 Оновлюємо список менеджерів...');
+        updateManagersFilter();
     }
-};
+    
+    // В любом случае применяем все фильтры
+    console.log('🔄 Застосовуємо фільтри...');
+    applyFilters();
+}
 
 /**
- * Установка обработчиков событий для фильтров (отдельная функция)
+ * Установка обработчиков событий для фильтров (единый центр).
  */
 function setupDebtsEventHandlers() {
-    console.log('🔧 setupDebtsEventHandlers: Настройка обработчиков событий');
+    console.log('🔧 Налаштування єдиного обробника подій...');
     
     const departmentFilterEl = document.getElementById('department-filter');
     const managerFilterEl = document.getElementById('manager-filter');
@@ -699,56 +613,29 @@ function setupDebtsEventHandlers() {
         sort: !!sortFilterEl
     });
     
-    // ДИАГНОСТИКА: проверяем что элементы существуют
-    if (!departmentFilterEl) console.error('❌ department-filter НЕ ЗНАЙДЕНИЙ!');
-    if (!managerFilterEl) console.error('❌ manager-filter НЕ ЗНАЙДЕНИЙ!');
-    if (!debtTypeFilterEl) console.error('❌ debt-type-filter НЕ ЗНАЙДЕНИЙ!');
-    if (!sortFilterEl) console.error('❌ sort-filter НЕ ЗНАЙДЕНИЙ!');
+    const filters = [departmentFilterEl, managerFilterEl, debtTypeFilterEl, sortFilterEl];
     
-    // Список всех типов событий для прослушивания
-    const eventTypes = ['change', 'input', 'click'];
+    filters.forEach(element => {
+        if (element) {
+            console.log(`🔧 Настройка ${element.id}...`);
+            // Удаляем предыдущий обработчик, чтобы избежать дублирования
+            element.removeEventListener('change', handleFilterChange);
+            // Добавляем новый
+            element.addEventListener('change', handleFilterChange);
+            console.log(`✅ ${element.id}: обработчик change установлен`);
+        } else {
+            console.error(`❌ Элемент фильтра не найден:`, element);
+        }
+    });
     
-    // Функция для установки мульти-обработчиков
-    const setupMultiHandler = (element, elementName) => {
-        if (!element) return;
-        
-        console.log(`🔧 Настройка обработчиков для ${elementName}...`);
-        
-        // Удаляем все старые обработчики
-        eventTypes.forEach(eventType => {
-            element.removeEventListener(eventType, debtsEventHandlers.universalHandler);
-        });
-        element.onchange = null;
-        element.oninput = null;
-        element.onclick = null;
-        
-        // Добавляем новые обработчики
-        eventTypes.forEach(eventType => {
-            element.addEventListener(eventType, debtsEventHandlers.universalHandler, true);
-        });
-        
-        console.log(`✅ ${elementName}: обработчики ${eventTypes.join(', ')} установлены`);
-    };
+    console.log('✅ Обробники подій "change" встановлені.');
     
-    // Устанавливаем обработчики для всех фильтров
-    setupMultiHandler(departmentFilterEl, 'Department filter');
-    setupMultiHandler(managerFilterEl, 'Manager filter');
-    setupMultiHandler(debtTypeFilterEl, 'Debt type filter');
-    setupMultiHandler(sortFilterEl, 'Sort filter');
-    
-    console.log('✅ Все обработчики событий установлены в capture phase');
-    
-    // ДИАГНОСТИКА: тестируем что обработчики действительно работают
-    console.log('🧪 ТЕСТИРОВАНИЕ обработчиков...');
+    // ТЕСТ: принудительный вызов для проверки
     if (managerFilterEl) {
-        console.log('🧪 Проверяем manager-filter...');
-        console.log('🧪 Current value:', managerFilterEl.value);
-        console.log('🧪 Options count:', managerFilterEl.options.length);
-        
-        // Принудительно вызываем событие для теста
         setTimeout(() => {
-            console.log('🧪 Принудительно викликаємо change event...');
+            console.log('🧪 Тестовый вызов handleFilterChange...');
             const testEvent = new Event('change', { bubbles: true });
+            Object.defineProperty(testEvent, 'target', { value: managerFilterEl });
             managerFilterEl.dispatchEvent(testEvent);
         }, 100);
     }
@@ -1610,26 +1497,19 @@ window.testFilterEvents = function() {
     const departmentFilter = document.getElementById('department-filter');
     
     if (managerFilter) {
-        console.log('🧪 Тестируем manager-filter события...');
+        console.log('🧪 Тестируем manager-filter change event...');
         console.log('🧪 Текущее значение:', managerFilter.value);
         
-        // Тест разных типов событий
-        ['change', 'input', 'click'].forEach(eventType => {
-            console.log(`🧪 Создаём ${eventType} event...`);
-            const event = new Event(eventType, { bubbles: true, cancelable: true });
-            managerFilter.dispatchEvent(event);
-        });
+        const event = new Event('change', { bubbles: true, cancelable: true });
+        managerFilter.dispatchEvent(event);
     }
     
     if (departmentFilter) {
-        console.log('🧪 Тестируем department-filter события...');
+        console.log('🧪 Тестируем department-filter change event...');
         console.log('🧪 Текущее значение:', departmentFilter.value);
         
-        ['change', 'input', 'click'].forEach(eventType => {
-            console.log(`🧪 Создаём ${eventType} event...`);
-            const event = new Event(eventType, { bubbles: true, cancelable: true });
-            departmentFilter.dispatchEvent(event);
-        });
+        const event = new Event('change', { bubbles: true, cancelable: true });
+        departmentFilter.dispatchEvent(event);
     }
     
     console.log('🧪 =================== ТЕСТ СОБЫТИЙ ЗАВЕРШЕН ===================');
