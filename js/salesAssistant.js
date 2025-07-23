@@ -316,8 +316,12 @@ function renderSalesAssistantMain(mainBlock) {
                 }
             }
             statusContainer.classList.add('hidden');
-            populateDepartmentFilter();
-            populateManagerFilter();
+            // Проверяем, что мы не на странице debts
+            const currentPage = document.querySelector('.page.active')?.id;
+            if (currentPage !== 'debts-page') {
+                populateDepartmentFilter();
+                populateManagerFilter();
+            }
             analysisSection.classList.remove('hidden');
 
             // --- Додаю підтримку автоматичного вибору клієнта ---
@@ -457,7 +461,11 @@ function renderSalesAssistantMain(mainBlock) {
 
     // --- Додаю обробник для departmentFilter ---
     departmentFilter.onchange = () => {
-        populateManagerFilter();
+        // Проверяем, что мы не на странице debts
+        const currentPage = document.querySelector('.page.active')?.id;
+        if (currentPage !== 'debts-page') {
+            populateManagerFilter();
+        }
         // Скидаємо вибір менеджера і клієнта
         managerFilter.value = '';
         clientFilter.value = '';

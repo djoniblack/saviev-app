@@ -153,15 +153,17 @@ function transformApiDataToInternalFormat(apiData) {
         const debt = parseFloat(item["Долг"]) || 0;
         const contract = item["Договор"] || "Основний договір";
         
-        if (!clientCode || debt === 0) return; // Пропускаем записи без кода клиента или долга
+        if (!clientCode || debt === 0 || clientName === 'undefined' || !clientName) return; // Пропускаем записи без кода клиента, долга или некорректные данные
         
         // ВАЖНО: Ищем менеджера в Firebase данных, а не используем из API
         const managerFromFirebase = findManagerInFirebaseData(managerNameFromAPI);
         
-        // Если менеджер не найден в Firebase, пропускаем эту запись
+        // Если менеджер не найден в Firebase, записываем с оригинальным именем
         if (!managerFromFirebase && managersData.length > 0) {
-            console.log(`⚠️ Менеджер "${managerNameFromAPI}" не знайдений у Firebase, пропускаємо клієнта ${clientName}`);
-            return;
+            // Только логируем проблемные менеджеры, но не пропускаем клиентов
+            if (managerNameFromAPI && !managerNameFromAPI.includes('undefined') && managerNameFromAPI !== 'undefined') {
+                console.log(`⚠️ Менеджер "${managerNameFromAPI}" не знайдений у Firebase, використовуємо оригінальне ім'я`);
+            }
         }
         
         const finalManagerName = managerFromFirebase ? managerFromFirebase.name : (managerNameFromAPI || 'Невизначений менеджер');
@@ -223,7 +225,7 @@ function transformApiDataToInternalFormat(apiData) {
  * Поиск менеджера в Firebase данных по имени из API
  */
 function findManagerInFirebaseData(managerNameFromAPI) {
-    if (!managerNameFromAPI || managersData.length === 0) return null;
+    if (!managerNameFromAPI || managersData.length === 0 || managerNameFromAPI === 'undefined') return null;
     
     // Ищем точное совпадение по имени
     let manager = managersData.find(mgr => 
@@ -235,14 +237,34 @@ function findManagerInFirebaseData(managerNameFromAPI) {
     if (manager) return manager;
     
     // Если точное совпадение не найдено, ищем частичное (по фамилии)
-    const nameParts = managerNameFromAPI.split(' ');
+    const nameParts = managerNameFromAPI.split(' ').filter(part => part.trim());
     if (nameParts.length >= 2) {
         const lastName = nameParts[nameParts.length - 1];
+        const firstName = nameParts[0];
+        
         manager = managersData.find(mgr => 
             mgr.name && mgr.name.includes(lastName) ||
             mgr.lastName === lastName ||
-            mgr.fullName && mgr.fullName.includes(lastName)
+            mgr.fullName && mgr.fullName.includes(lastName) ||
+            (mgr.firstName === firstName && mgr.lastName === lastName)
         );
+    }
+    
+    // Дополнительные попытки для специальных имен
+    if (!manager) {
+        // Убираем префиксы типа "Менеджер", "ФОП" и т.д.
+        const cleanName = managerNameFromAPI
+            .replace(/^Менеджер\s+/i, '')
+            .replace(/\s+ФОП$/i, '')
+            .replace(/\s+потенційні\s+клієнти/i, '')
+            .trim();
+            
+        if (cleanName !== managerNameFromAPI) {
+            manager = managersData.find(mgr => 
+                mgr.name && mgr.name.includes(cleanName) ||
+                mgr.fullName && mgr.fullName.includes(cleanName)
+            );
+        }
     }
     
     return manager;
