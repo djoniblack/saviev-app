@@ -256,7 +256,15 @@ async function loadDebtsData() {
                     return data;
                 })
                 .catch(error => {
-                    console.warn('Помилка завантаження з API, використовуються демо дані:', error);
+                    console.error('❌ Помилка завантаження з API дебіторки:', error);
+                    console.warn('⚠️ Використовуються демо дані як fallback');
+                    
+                    // Показываем уведомление пользователю
+                    if (typeof window.showNotification === 'function') {
+                        window.showNotification('Не вдалося завантажити дані з сервера. Показано демо дані.', 'warning');
+                    }
+                    
+                    // Возвращаем демо данные в формате API
                     return DEMO_DEBTS_DATA.map(item => ({
                         "Главный контрагент": item.clientName,
                         "Главный контрагент.Код": item.clientCode,
@@ -293,12 +301,23 @@ async function loadDebtsData() {
         // Преобразуем данные API в нужный формат
         debtsData = transformApiDataToInternalFormat(apiDebtsData);
         
+        // Проверяем, используются ли демо данные
+        const isUsingDemoData = apiDebtsData === DEMO_DEBTS_DATA || 
+                               (Array.isArray(apiDebtsData) && apiDebtsData.length > 0 && 
+                                apiDebtsData[0]["Главный контрагент"] === "ТОВ Альфа Трейд");
+        
         console.log('Завантажено записів дебіторки:', debtsData.length);
         console.log('Приклад даних:', debtsData[0]);
         
+        if (isUsingDemoData) {
+            console.warn('🔄 Увага: Відображаються демонстраційні дані');
+        } else {
+            console.log('✅ Завантажено реальні дані з API');
+        }
+        
         hideLoadingState();
         renderDebtsFilters();
-        renderDebtsSummary();
+        renderDebtsSummary(debtsData, isUsingDemoData);
         renderDebtsTable();
         
     } catch (error) {
@@ -447,14 +466,14 @@ function applyFilters() {
             break;
     }
     
-    renderDebtsSummary(filteredData);
+    renderDebtsSummary(filteredData, false); // При фильтрации всегда используем уже загруженные данные
     renderDebtsTable(filteredData);
 }
 
 /**
  * Рендеринг сводки
  */
-function renderDebtsSummary(data = debtsData) {
+function renderDebtsSummary(data = debtsData, isDemo = false) {
     const summaryContainer = document.getElementById('debts-summary-container');
     if (!summaryContainer) return;
     
@@ -467,6 +486,15 @@ function renderDebtsSummary(data = debtsData) {
                           (data.filter(d => d.daysOverdue > 0).length || 1);
     
     summaryContainer.innerHTML = `
+        ${isDemo ? `
+            <div class="bg-orange-900 border border-orange-600 rounded-lg p-3 mb-4 flex items-center gap-3">
+                <div class="text-orange-400">⚠️</div>
+                <div>
+                    <div class="text-orange-200 font-medium">Демонстраційні дані</div>
+                    <div class="text-orange-300 text-sm">Сервер недоступний. Показано тестові дані для демонстрації.</div>
+                </div>
+            </div>
+        ` : ''}
         <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
             <div class="bg-gray-700 rounded-lg p-4">
                 <div class="text-2xl font-bold text-white">${clientsCount}</div>
