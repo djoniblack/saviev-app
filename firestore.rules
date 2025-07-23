@@ -33,15 +33,34 @@ service cloud.firestore {
                 'competencies_manage_models': true,
                 'competencies_view_reports': true,
                 'competencies_view_own_assessment': true,
-                // Права для дебиторки:
-                'debts_view_page': true, 'debts_view_all': true, 'debts_view_department': true, 'debts_view_own': true,
-                'debts_manage_comments': true, 'debts_manage_forecasts': true, 'debts_export': true,
-                // Права для план-факт:
-                'planfact_view_page': true, 'planfact_view_all': true, 'planfact_view_department': true, 'planfact_view_own': true,
-                'planfact_create_plans': true, 'planfact_edit_own': true, 'planfact_edit_department': true, 'planfact_edit_all': true,
-                'planfact_manage_targets': true, 'planfact_view_analytics': true,
                 'isOwner': true,
                 'smartday_access': true,
+                'focus_view': true,
+                'focus_create': true,
+                'focus_edit': true,
+                'focus_manage': true,
+                // Новые права для модуля дебиторки:
+                'debts_view_page': true,
+                'debts_view_all_clients': true,
+                'debts_view_manager_clients': true,
+                'debts_view_department_clients': true,
+                'debts_add_comments': true,
+                'debts_edit_comments': true,
+                'debts_delete_comments': true,
+                'debts_add_forecasts': true,
+                'debts_edit_forecasts': true,
+                'debts_delete_forecasts': true,
+                'debts_export_data': true,
+                // Новые права для модуля план-факт:
+                'planfact_view_page': true,
+                'planfact_create_plans': true,
+                'planfact_edit_own_plans': true,
+                'planfact_edit_all_plans': true,
+                'planfact_delete_own_plans': true,
+                'planfact_delete_all_plans': true,
+                'planfact_view_dashboard': true,
+                'planfact_create_targets': true,
+                'planfact_edit_targets': true,
               }
             : ('permissions' in get(/databases/$(database)/documents/companies/$(companyId)/members/$(userId)).data
                 ? get(/databases/$(database)/documents/companies/$(companyId)/members/$(userId)).data.permissions
@@ -67,7 +86,7 @@ service cloud.firestore {
       allow update, delete: if isUserAuthenticated() && isCompanyOwner(companyId);
 
       // --- ПОДКОЛЛЕКЦИИ ---
-// --- ПРОДАЖІ (sales) --- ДОДАЙТЕ СЮДИ!
+      // --- ПРОДАЖІ (sales) --- ДОДАЙТЕ СЮДИ!
       match /sales/{monthKey} {
         allow read: if isUserAuthenticated() && canMemberRead(companyId);
         allow write: if isUserAuthenticated() && (
@@ -220,7 +239,7 @@ service cloud.firestore {
         allow create, update, delete: if isUserAuthenticated() &&
           (isCompanyOwner(companyId) || getUserEffectivePermissions(companyId, request.auth.uid).competencies_assess_employees == true);
       }
-      // Добавляйте другие коллекции компетенций по аналогии, если появятся
+
       // --- ФОКУСНІ ЗАДАЧІ ---
       match /focusTasks/{taskId} {
         allow read: if isUserAuthenticated() && getUserEffectivePermissions(companyId, request.auth.uid).focus_view == true;
@@ -241,97 +260,95 @@ service cloud.firestore {
       }
 
       // --- ДЕБІТОРСЬКА ЗАБОРГОВАНІСТЬ ---
-      match /debtComments/{clientCode} {
+      match /debtComments/{commentId} {
         allow read: if isUserAuthenticated() && (
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_page == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_all == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_department == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_own == true
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_page == true
         );
-        allow create, update: if isUserAuthenticated() && (
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_manage_comments == true ||
-          isCompanyOwner(companyId)
+        allow create: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).debts_add_comments == true
+        );
+        allow update: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).debts_edit_comments == true ||
+          (resource.data.managerId == request.auth.uid && getUserEffectivePermissions(companyId, request.auth.uid).debts_add_comments == true)
         );
         allow delete: if isUserAuthenticated() && (
           isCompanyOwner(companyId) ||
-          (getUserEffectivePermissions(companyId, request.auth.uid).debts_manage_comments == true && 
-           resource.data.updatedBy == request.auth.uid)
+          getUserEffectivePermissions(companyId, request.auth.uid).debts_delete_comments == true ||
+          (resource.data.managerId == request.auth.uid && getUserEffectivePermissions(companyId, request.auth.uid).debts_add_comments == true)
         );
       }
 
-      match /paymentForecasts/{clientCode} {
+      match /paymentForecasts/{forecastId} {
         allow read: if isUserAuthenticated() && (
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_page == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_all == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_department == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_own == true
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).debts_view_page == true
         );
-        allow create, update: if isUserAuthenticated() && (
-          getUserEffectivePermissions(companyId, request.auth.uid).debts_manage_forecasts == true ||
-          isCompanyOwner(companyId)
+        allow create: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).debts_add_forecasts == true
+        );
+        allow update: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).debts_edit_forecasts == true ||
+          (resource.data.managerId == request.auth.uid && getUserEffectivePermissions(companyId, request.auth.uid).debts_add_forecasts == true)
         );
         allow delete: if isUserAuthenticated() && (
           isCompanyOwner(companyId) ||
-          (getUserEffectivePermissions(companyId, request.auth.uid).debts_manage_forecasts == true && 
-           resource.data.createdBy == request.auth.uid)
+          getUserEffectivePermissions(companyId, request.auth.uid).debts_delete_forecasts == true ||
+          (resource.data.managerId == request.auth.uid && getUserEffectivePermissions(companyId, request.auth.uid).debts_add_forecasts == true)
         );
       }
 
       // --- ПЛАН-ФАКТ ---
       match /plans/{planId} {
         allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
           getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_page == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_all == true ||
-          (getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_department == true && 
-           // TODO: Добавить проверку отдела менеджера
-           true) ||
-          (getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_own == true && 
-           resource.data.createdBy == request.auth.uid)
+          (resource.data.managerId == request.auth.uid && getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_page == true)
         );
         allow create: if isUserAuthenticated() && (
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_create_plans == true ||
-          isCompanyOwner(companyId)
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).planfact_create_plans == true
         );
         allow update: if isUserAuthenticated() && (
           isCompanyOwner(companyId) ||
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_all == true ||
-          (getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_department == true && 
-           // TODO: Добавить проверку отдела
-           true) ||
-          (getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_own == true && 
-           resource.data.createdBy == request.auth.uid)
+          getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_all_plans == true ||
+          (resource.data.managerId == request.auth.uid && getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_own_plans == true)
         );
         allow delete: if isUserAuthenticated() && (
           isCompanyOwner(companyId) ||
-          (getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_all == true) ||
-          (resource.data.createdBy == request.auth.uid && 
-           getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_own == true)
+          getUserEffectivePermissions(companyId, request.auth.uid).planfact_delete_all_plans == true ||
+          (resource.data.managerId == request.auth.uid && getUserEffectivePermissions(companyId, request.auth.uid).planfact_delete_own_plans == true)
         );
       }
 
       match /planTargets/{targetId} {
         allow read: if isUserAuthenticated() && (
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_page == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_all == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_department == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_own == true
-        );
-        allow create, update, delete: if isUserAuthenticated() && (
           isCompanyOwner(companyId) ||
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_manage_targets == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_all == true
+          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_page == true
+        );
+        allow create, update: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).planfact_create_targets == true ||
+          getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_targets == true
+        );
+        allow delete: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).planfact_edit_targets == true
         );
       }
 
       match /planFactAnalytics/{analyticsId} {
         allow read: if isUserAuthenticated() && (
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_analytics == true ||
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_all == true ||
-          isCompanyOwner(companyId)
-        );
-        allow create, update: if isUserAuthenticated() && (
           isCompanyOwner(companyId) ||
-          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_analytics == true
+          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_dashboard == true
+        );
+        allow write: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          getUserEffectivePermissions(companyId, request.auth.uid).planfact_view_dashboard == true
         );
       }
     }

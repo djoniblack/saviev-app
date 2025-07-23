@@ -94,24 +94,27 @@ export const ALL_POSSIBLE_PERMISSIONS = [
     
     // --- Дебіторська заборгованість ---
     { id: 'debts_view_page', label: 'Доступ до модуля "Дебіторка"' },
-    { id: 'debts_view_all', label: 'Перегляд всіх заборгованостей компанії' },
-    { id: 'debts_view_department', label: 'Перегляд заборгованостей свого відділу' },
-    { id: 'debts_view_own', label: 'Перегляд заборгованостей власних клієнтів' },
-    { id: 'debts_manage_comments', label: 'Додавання коментарів по заборгованостях' },
-    { id: 'debts_manage_forecasts', label: 'Створення прогнозів оплат' },
-    { id: 'debts_export', label: 'Експорт звіту дебіторки в Excel/CSV' },
+    { id: 'debts_view_all_clients', label: 'Перегляд всіх заборгованостей компанії' },
+    { id: 'debts_view_manager_clients', label: 'Перегляд заборгованостей власних клієнтів' },
+    { id: 'debts_view_department_clients', label: 'Перегляд заборгованостей свого відділу' },
+    { id: 'debts_add_comments', label: 'Додавання коментарів по заборгованостях' },
+    { id: 'debts_edit_comments', label: 'Редагування коментарів по заборгованостях' },
+    { id: 'debts_delete_comments', label: 'Видалення коментарів по заборгованостях' },
+    { id: 'debts_add_forecasts', label: 'Створення прогнозів оплат' },
+    { id: 'debts_edit_forecasts', label: 'Редагування прогнозів оплат' },
+    { id: 'debts_delete_forecasts', label: 'Видалення прогнозів оплат' },
+    { id: 'debts_export_data', label: 'Експорт звіту дебіторки в Excel/CSV' },
     
     // --- План-Факт ---
     { id: 'planfact_view_page', label: 'Доступ до модуля "План-Факт"' },
-    { id: 'planfact_view_all', label: 'Перегляд всіх планів компанії' },
-    { id: 'planfact_view_department', label: 'Перегляд планів свого відділу' },
-    { id: 'planfact_view_own', label: 'Перегляд власних планів' },
     { id: 'planfact_create_plans', label: 'Створення планів' },
-    { id: 'planfact_edit_own', label: 'Редагування власних планів' },
-    { id: 'planfact_edit_department', label: 'Редагування планів свого відділу' },
-    { id: 'planfact_edit_all', label: 'Редагування всіх планів компанії' },
-    { id: 'planfact_manage_targets', label: 'Управління цілями та KPI в планах' },
-    { id: 'planfact_view_analytics', label: 'Перегляд аналітики та прогнозів' },
+    { id: 'planfact_edit_own_plans', label: 'Редагування власних планів' },
+    { id: 'planfact_edit_all_plans', label: 'Редагування всіх планів компанії' },
+    { id: 'planfact_delete_own_plans', label: 'Видалення власних планів' },
+    { id: 'planfact_delete_all_plans', label: 'Видалення всіх планів компанії' },
+    { id: 'planfact_view_dashboard', label: 'Перегляд дашборду та аналітики' },
+    { id: 'planfact_create_targets', label: 'Створення цілей та KPI в планах' },
+    { id: 'planfact_edit_targets', label: 'Редагування цілей та KPI в планах' },
 ];
 
 
