@@ -541,9 +541,24 @@ function calculateManagerKpi(manager, calculationMaps, selectedPeriod) {
     
     // 5. Расчет фактических показателей по фокусным клиентам за период
     const focusClientCodesArray = Array.from(focusClientCodes);
+    
+    // Собираем все товары из фокусных задач
+    const focusProducts = new Set();
+    managerFocusTasks.forEach(task => {
+        if (task.products && Array.isArray(task.products)) {
+            task.products.forEach(product => focusProducts.add(product));
+        }
+    });
+    
     const focusSalesForPeriod = masterData.filter(sale => {
         const clientCode = sale['Клиент.Код'] || sale['Клієнт.Код'];
+        const product = sale['Номенклатура'];
+        
+        // Фильтрация по клиентам из фокуса
         if (!focusClientCodesArray.includes(clientCode)) return false;
+        
+        // ВАЖНО: Фильтрация по номенклатуре из фокусных задач
+        if (!focusProducts.has(product)) return false;
         
         // Фильтрация по выбранному периоду анализа
         const saleDate = new Date(sale['Дата']);
@@ -617,7 +632,14 @@ function calculateManagerKpi(manager, calculationMaps, selectedPeriod) {
         debug: {
             totalChecks,
             salesRecords: salesForManager.length,
-            avgCheckCalculation: `${totalRevenue.toFixed(2)} / ${totalChecks} = ${avgCheck.toFixed(2)}`
+            avgCheckCalculation: `${totalRevenue.toFixed(2)} / ${totalChecks} = ${avgCheck.toFixed(2)}`,
+            focusDebug: {
+                focusTasks: managerFocusTasks.length,
+                focusProducts: Array.from(focusProducts),
+                focusClients: focusClientCodesArray.length,
+                focusSales: focusSalesForPeriod.length,
+                focusRevenue: focusActualRevenue.toFixed(2)
+            }
         }
     });
     return result;
@@ -673,6 +695,7 @@ function renderDepartmentSection(departmentData) {
             ${createStatCardHTML('Середній чек', `${deptAvgCheck.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`, 'shopping-cart', 'yellow')}
             ${createStatCardHTML('Сума продаж', `${summary.totalRevenue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`, 'dollar-sign', 'indigo')}
             ${createStatCardHTML('Сума фокусної задачі', `${summary.focusTaskAmount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`, 'target', 'red')}
+            ${createStatCardHTML('Факт по фокусу', `${(summary.focusActualRevenue || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`, 'trending-up', 'purple')}
           </div>
           <div class="w-full overflow-auto">
             <table class="w-full caption-bottom text-sm">
@@ -788,7 +811,8 @@ function createStatCardHTML(title, value, iconName, color) {
         'percent': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-${color}-500"><line x1="19" x2="5" y1="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>`,
         'shopping-cart': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-${color}-500"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>`,
         'target': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-${color}-500"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
-        'dollar-sign': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-${color}-500"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`
+        'dollar-sign': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-${color}-500"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+        'trending-up': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-${color}-500"><polyline points="22,7 13.5,15.5 8.5,10.5 2,17"/><polyline points="16,7 22,7 22,13"/></svg>`
     };
 
     return `
