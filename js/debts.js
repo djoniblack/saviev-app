@@ -121,6 +121,101 @@ export function initDebtsModule(container) {
 }
 
 /**
+ * Преобразование данных API в внутренний формат
+ */
+function transformApiDataToInternalFormat(apiData) {
+    if (!Array.isArray(apiData)) {
+        console.error('API вернуло не массив:', apiData);
+        return [];
+    }
+    
+    // Группируем данные по клиентам
+    const clientsMap = new Map();
+    
+    apiData.forEach(item => {
+        const clientCode = item["Клиент.Код"] || item["Главный контрагент.Код"];
+        const clientName = item["Клиент"] || item["Главный контрагент"];
+        const manager = item["Менеджер"];
+        const debt = parseFloat(item["Долг"]) || 0;
+        const contract = item["Договор"] || "Основний договір";
+        
+        if (!clientCode || debt === 0) return; // Пропускаем записи без кода клиента или долга
+        
+        if (!clientsMap.has(clientCode)) {
+            clientsMap.set(clientCode, {
+                clientCode: clientCode,
+                clientName: clientName,
+                manager: manager,
+                department: getManagerDepartment(manager),
+                totalDebt: 0,
+                overdueDebt: 0,
+                currentDebt: 0,
+                lastPayment: "",
+                daysOverdue: 0,
+                contracts: []
+            });
+        }
+        
+        const client = clientsMap.get(clientCode);
+        client.totalDebt += debt;
+        
+        // Простая логика: считаем весь долг текущим (можно доработать)
+        client.currentDebt += debt;
+        
+        // Добавляем информацию о договоре
+        client.contracts.push({
+            name: contract,
+            debt: debt,
+            manager: manager
+        });
+    });
+    
+    // Преобразуем Map в массив
+    return Array.from(clientsMap.values()).map(client => ({
+        ...client,
+        // Создаем имитацию счетов для совместимости
+        invoices: client.contracts.map((contract, index) => ({
+            number: `${contract.name}-${index + 1}`,
+            date: new Date().toISOString().split('T')[0],
+            amount: contract.debt,
+            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // +30 дней
+            status: "current",
+            contract: contract.name
+        }))
+    }));
+}
+
+/**
+ * Получение отдела менеджера
+ */
+function getManagerDepartment(managerName) {
+    if (!managerName) return "Невизначений відділ";
+    
+    // Ищем в загруженных данных менеджеров
+    const manager = managersData.find(mgr => 
+        mgr.name === managerName || 
+        mgr.fullName === managerName ||
+        (mgr.firstName && mgr.lastName && `${mgr.firstName} ${mgr.lastName}` === managerName)
+    );
+    
+    if (manager && manager.department) {
+        // Если есть ID отдела, ищем название отдела
+        const department = departmentsData.find(dept => dept.id === manager.department);
+        return department ? department.name : manager.department;
+    }
+    
+    // Простая логика по умолчанию на основе имени менеджера
+    const lowerName = managerName.toLowerCase();
+    if (lowerName.includes('оптов') || lowerName.includes('wholesale')) {
+        return "Оптовий відділ";
+    } else if (lowerName.includes('роздрібн') || lowerName.includes('retail')) {
+        return "Роздрібний відділ";
+    } else {
+        return "Відділ продажу";
+    }
+}
+
+/**
  * Загрузка данных дебиторки
  */
 async function loadDebtsData() {
@@ -128,25 +223,64 @@ async function loadDebtsData() {
         // Показываем индикатор загрузки
         showLoadingState();
         
-        // Пока используем демо данные
-        // В будущем здесь будет: const response = await fetch('API_URL_FOR_DEBTS');
-        debtsData = DEMO_DEBTS_DATA;
-        
-        // Загружаем менеджеров и отделы из Firebase
+        // Загружаем данные параллельно
         const companyId = window.state?.currentCompanyId;
+        
+        const promises = [
+            // Загружаем данные дебиторки с API
+            fetch('https://fastapi.lookfort.com/company.debt')
+                .then(response => {
+                    console.log('API відповідь статус:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('API данні отримано:', Array.isArray(data) ? `${data.length} записів` : typeof data);
+                    console.log('Приклад API запису:', data[0]);
+                    return data;
+                })
+                .catch(error => {
+                    console.warn('Помилка завантаження з API, використовуються демо дані:', error);
+                    return DEMO_DEBTS_DATA.map(item => ({
+                        "Главный контрагент": item.clientName,
+                        "Главный контрагент.Код": item.clientCode,
+                        "Договор": "Основний договір",
+                        "Долг": item.totalDebt,
+                        "Клиент": item.clientName,
+                        "Клиент.Код": item.clientCode,
+                        "Менеджер": item.manager
+                    }));
+                })
+        ];
+        
+        // Загружаем данные из Firebase если есть компания
         if (companyId) {
-            const [employeesSnap, departmentsSnap, commentsSnap, forecastsSnap] = await Promise.all([
+            promises.push(
                 firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/employees`)),
                 firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/departments`)),
                 firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/debtComments`)),
                 firebase.getDocs(firebase.collection(firebase.db, `companies/${companyId}/paymentForecasts`))
-            ]);
-            
+            );
+        }
+        
+        const results = await Promise.all(promises);
+        const apiDebtsData = results[0];
+        
+        if (companyId && results.length > 1) {
+            const [, employeesSnap, departmentsSnap, commentsSnap, forecastsSnap] = results;
             managersData = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             departmentsData = departmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             clientCommentsData = commentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             paymentForecastsData = forecastsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         }
+        
+        // Преобразуем данные API в нужный формат
+        debtsData = transformApiDataToInternalFormat(apiDebtsData);
+        
+        console.log('Завантажено записів дебіторки:', debtsData.length);
+        console.log('Приклад даних:', debtsData[0]);
         
         hideLoadingState();
         renderDebtsFilters();
@@ -464,25 +598,28 @@ window.showDebtDetails = function(clientCode) {
             </div>
             
             <div class="mb-6">
-                <h3 class="text-lg font-bold text-white mb-3">Рахунки</h3>
+                <h3 class="text-lg font-bold text-white mb-3">Заборгованості по договорах</h3>
                 <div class="bg-gray-700 rounded-lg overflow-hidden">
                     <table class="w-full">
                         <thead class="bg-gray-600">
                             <tr>
-                                <th class="px-4 py-2 text-left text-white">№ Рахунку</th>
-                                <th class="px-4 py-2 text-center text-white">Дата</th>
-                                <th class="px-4 py-2 text-right text-white">Сума</th>
-                                <th class="px-4 py-2 text-center text-white">Термін оплати</th>
+                                <th class="px-4 py-2 text-left text-white">Договір</th>
+                                <th class="px-4 py-2 text-center text-white">Дата формування</th>
+                                <th class="px-4 py-2 text-right text-white">Сума боргу</th>
+                                <th class="px-4 py-2 text-center text-white">Менеджер</th>
                                 <th class="px-4 py-2 text-center text-white">Статус</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${debt.invoices.map(invoice => `
                                 <tr class="border-b border-gray-600">
-                                    <td class="px-4 py-2 text-white">${invoice.number}</td>
+                                    <td class="px-4 py-2 text-white">
+                                        <div class="font-medium">${invoice.contract || invoice.number}</div>
+                                        ${invoice.contract !== invoice.number ? `<div class="text-xs text-gray-400">${invoice.number}</div>` : ''}
+                                    </td>
                                     <td class="px-4 py-2 text-center text-gray-200">${invoice.date}</td>
-                                    <td class="px-4 py-2 text-right text-white">${formatCurrency(invoice.amount)}</td>
-                                    <td class="px-4 py-2 text-center text-gray-200">${invoice.dueDate}</td>
+                                    <td class="px-4 py-2 text-right text-white font-medium">${formatCurrency(invoice.amount)}</td>
+                                    <td class="px-4 py-2 text-center text-gray-200">${debt.manager}</td>
                                     <td class="px-4 py-2 text-center">
                                         <span class="px-2 py-1 rounded-full text-xs ${
                                             invoice.status === 'overdue' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
@@ -600,7 +737,53 @@ window.saveDebtComment = async function(clientCode) {
  * Экспорт в Excel
  */
 window.exportDebtsToExcel = function() {
-    alert('Функція експорту в Excel буде реалізована після підключення реальних даних');
+    try {
+        // Подготавливаем данные для экспорта
+        const exportData = debtsData.map(debt => ({
+            'Код клієнта': debt.clientCode,
+            'Назва клієнта': debt.clientName,
+            'Менеджер': debt.manager,
+            'Відділ': debt.department,
+            'Загальний борг': debt.totalDebt,
+            'Прострочений борг': debt.overdueDebt,
+            'Поточний борг': debt.currentDebt,
+            'Днів прострочки': debt.daysOverdue,
+            'Кількість договорів': debt.contracts?.length || debt.invoices?.length || 0
+        }));
+        
+        // Создаем CSV контент
+        const headers = Object.keys(exportData[0]);
+        const csvContent = [
+            headers.join(','),
+            ...exportData.map(row => 
+                headers.map(header => {
+                    const value = row[header];
+                    // Экранируем запятые и кавычки
+                    if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+                        return `"${value.replace(/"/g, '""')}"`;
+                    }
+                    return value;
+                }).join(',')
+            )
+        ].join('\n');
+        
+        // Создаем и скачиваем файл
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `debitorka_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log('Експорт завершено, записів:', exportData.length);
+        
+    } catch (error) {
+        console.error('Помилка експорту:', error);
+        alert('Помилка під час експорту даних');
+    }
 };
 
 /**
