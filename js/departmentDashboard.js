@@ -694,7 +694,6 @@ function renderDepartmentSection(departmentData) {
             ${createStatCardHTML('% відгрузки', `${deptShipmentPercentage.toFixed(2)}%`, 'percent', 'green')}
             ${createStatCardHTML('Середній чек', `${deptAvgCheck.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`, 'shopping-cart', 'yellow')}
             ${createStatCardHTML('Сума продаж', `${summary.totalRevenue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`, 'dollar-sign', 'indigo')}
-            ${createStatCardHTML('Сума фокусної задачі', `${summary.focusTaskAmount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`, 'target', 'red')}
             ${createStatCardHTML('Факт по фокусу', `${(summary.focusActualRevenue || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} грн`, 'trending-up', 'purple')}
           </div>
           <div class="w-full overflow-auto">
