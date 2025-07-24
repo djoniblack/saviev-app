@@ -316,20 +316,9 @@ function renderSalesAssistantMain(mainBlock) {
                 }
             }
             statusContainer.classList.add('hidden');
-            // Проверяем, что мы не на странице debts и не в режиме debts
-            const currentPage = document.querySelector('.page.active')?.id;
-            const isDebtsContext = currentPage === 'debts-page' || 
-                                 document.querySelector('#debts-filters-container') !== null ||
-                                 window.location.hash.includes('debts');
-            
-            console.log('[salesAssistant] Проверка контекста:', { currentPage, isDebtsContext });
-            
-            if (!isDebtsContext) {
-                populateDepartmentFilter();
-                populateManagerFilter();
-            } else {
-                console.log('[salesAssistant] Пропускаем populateManagerFilter - обнаружен debts контекст');
-            }
+            // Всегда популяризируем фильтры в salesAssistant - убрали блокировку
+            populateDepartmentFilter();
+            populateManagerFilter();
             analysisSection.classList.remove('hidden');
 
             // --- Додаю підтримку автоматичного вибору клієнта ---
@@ -469,19 +458,8 @@ function renderSalesAssistantMain(mainBlock) {
 
     // --- Додаю обробник для departmentFilter ---
     departmentFilter.onchange = () => {
-        // Проверяем, что мы не на странице debts и не в режиме debts
-        const currentPage = document.querySelector('.page.active')?.id;
-        const isDebtsContext = currentPage === 'debts-page' || 
-                             document.querySelector('#debts-filters-container') !== null ||
-                             window.location.hash.includes('debts');
-        
-        console.log('[salesAssistant] departmentFilter.onchange проверка:', { currentPage, isDebtsContext });
-        
-        if (!isDebtsContext) {
-            populateManagerFilter();
-        } else {
-            console.log('[salesAssistant] Пропускаем populateManagerFilter при смене отдела - debts контекст');
-        }
+        // Всегда вызываем populateManagerFilter - убрали блокировку
+        populateManagerFilter();
         // Скидаємо вибір менеджера і клієнта
         managerFilter.value = '';
         clientFilter.value = '';

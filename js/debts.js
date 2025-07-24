@@ -439,7 +439,7 @@ function renderDebtsFilters() {
         ).join('');
         
         // Получаем менеджеров из Firebase, фильтруем по выбранному отделу
-        const selectedDepartment = document.getElementById('department-filter')?.value || '';
+        const selectedDepartment = document.getElementById('debts-department-filter')?.value || '';
         const filteredManagers = selectedDepartment 
             ? managersData.filter(manager => {
                 // Проверяем разные возможные поля для связи с отделом
@@ -489,14 +489,14 @@ function renderDebtsFilters() {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1 text-gray-200">Відділ:</label>
-                    <select id="department-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
+                                            <select id="debts-department-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
                         <option value="">Всі відділи</option>
                         ${departmentOptions}
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1 text-gray-200">Менеджер:</label>
-                    <select id="manager-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
+                    <select id="debts-manager-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
                         <option value="">Всі менеджери</option>
                         ${managerOptions}
                     </select>
@@ -515,11 +515,11 @@ function handleFilterChange(event) {
     console.log(`🎯 Спрацював фільтр: ${event.target.id}, значення: ${event.target.value}`);
     
     // Получаем ссылки на оставшиеся фильтры
-    const departmentFilterEl = document.getElementById('department-filter');
-    const managerFilterEl = document.getElementById('manager-filter');
+    const departmentFilterEl = document.getElementById('debts-department-filter');
+    const managerFilterEl = document.getElementById('debts-manager-filter');
     
     // Если изменился фильтр отделов, нужно обновить список менеджеров
-    if (event.target.id === 'department-filter') {
+    if (event.target.id === 'debts-department-filter') {
         console.log('🏢 Оновлюємо список менеджерів...');
         updateManagersFilter(); // Эта функция может изменить managerFilterEl.value
     }
@@ -541,8 +541,8 @@ function handleFilterChange(event) {
 function setupDebtsEventHandlers() {
     console.log('🔧 Налаштування єдиного обробника подій...');
     
-    const departmentFilterEl = document.getElementById('department-filter');
-    const managerFilterEl = document.getElementById('manager-filter');
+    const departmentFilterEl = document.getElementById('debts-department-filter');
+    const managerFilterEl = document.getElementById('debts-manager-filter');
     
     console.log('📋 Найденные элементы фильтров:', {
         department: !!departmentFilterEl,
@@ -573,8 +573,8 @@ function setupDebtsEventHandlers() {
  * Обновление фильтра менеджеров при изменении отдела
  */
 function updateManagersFilter() {
-    const departmentFilter = document.getElementById('department-filter');
-    const managerFilter = document.getElementById('manager-filter');
+    const departmentFilter = document.getElementById('debts-department-filter');
+    const managerFilter = document.getElementById('debts-manager-filter');
     
     if (!departmentFilter || !managerFilter) return;
     
@@ -633,8 +633,8 @@ function applyFilters(filters = {}) {
     console.log('🔍 applyFilters викликано з debts.js');
     
     // Проверяем элементы фильтров (для обратной совместимости)
-    const managerFilterEl = document.getElementById('manager-filter');
-    const departmentFilterEl = document.getElementById('department-filter');
+    const managerFilterEl = document.getElementById('debts-manager-filter');
+    const departmentFilterEl = document.getElementById('debts-department-filter');
     
     console.log('📋 Елементи фільтрів знайдені:', {
         manager: !!managerFilterEl,
@@ -1358,8 +1358,8 @@ window.testDebtsFilters = function() {
     
     // Проверяем наличие элементов
     const elements = {
-        department: document.getElementById('department-filter'),
-        manager: document.getElementById('manager-filter')
+        department: document.getElementById('debts-department-filter'),
+        manager: document.getElementById('debts-manager-filter')
     };
     
     console.log('📋 Элементы фильтров:', elements);
@@ -1385,8 +1385,8 @@ window.testDebtsFilters = function() {
 window.testFilterEvents = function() {
     console.log('🧪 =================== ТЕСТ СОБЫТИЙ ФИЛЬТРОВ ===================');
     
-    const managerFilter = document.getElementById('manager-filter');
-    const departmentFilter = document.getElementById('department-filter');
+    const managerFilter = document.getElementById('debts-manager-filter');
+    const departmentFilter = document.getElementById('debts-department-filter');
     
     if (managerFilter) {
         console.log('🧪 Тестируем manager-filter change event...');
@@ -1411,8 +1411,8 @@ window.testFilterEvents = function() {
 window.testRealFiltering = function() {
     console.log('🧪 =================== ТЕСТ РЕАЛЬНОЙ ФИЛЬТРАЦИИ ===================');
     
-    const departmentFilter = document.getElementById('department-filter');
-    const managerFilter = document.getElementById('manager-filter');
+    const departmentFilter = document.getElementById('debts-department-filter');
+    const managerFilter = document.getElementById('debts-manager-filter');
     
     if (departmentFilter && departmentFilter.options.length > 1) {
         // Выбираем первый отдел (не "Всі відділи")
