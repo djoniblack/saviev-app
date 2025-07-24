@@ -158,12 +158,10 @@ function transformApiDataToInternalFormat(apiData) {
         // ВАЖНО: Ищем менеджера в Firebase данных, а не используем из API
         const managerFromFirebase = findManagerInFirebaseData(managerNameFromAPI);
         
-        // Если менеджер не найден в Firebase, записываем с оригинальным именем
+        // Если менеджер не найден в Firebase, пропускаем эту запись
         if (!managerFromFirebase && managersData.length > 0) {
-            // Только логируем проблемные менеджеры, но не пропускаем клиентов
-            if (managerNameFromAPI && !managerNameFromAPI.includes('undefined') && managerNameFromAPI !== 'undefined') {
-                console.log(`⚠️ Менеджер "${managerNameFromAPI}" не знайдений у Firebase, використовуємо оригінальне ім'я`);
-            }
+            console.log(`⚠️ Менеджер "${managerNameFromAPI}" не знайдений у Firebase, пропускаємо клієнта ${clientName}`);
+            return;
         }
         
         const finalManagerName = managerFromFirebase ? managerFromFirebase.name : (managerNameFromAPI || 'Невизначений менеджер');
@@ -560,7 +558,7 @@ function renderDebtsFilters() {
     
     filtersContainer.innerHTML = `
         <div class="bg-gray-700 rounded-lg p-4">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1 text-gray-200">Відділ:</label>
                     <select id="department-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
@@ -573,24 +571,6 @@ function renderDebtsFilters() {
                     <select id="manager-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
                         <option value="">Всі менеджери</option>
                         ${managerOptions}
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1 text-gray-200">Тип заборгованості:</label>
-                    <select id="debt-type-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
-                        <option value="">Всі</option>
-                        <option value="overdue">Прострочена</option>
-                        <option value="current">Поточна</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1 text-gray-200">Сортування:</label>
-                    <select id="sort-filter" class="dark-input bg-gray-600 text-gray-200 w-full">
-                        <option value="debt-desc">Борг (зменшення)</option>
-                        <option value="debt-asc">Борг (зростання)</option>
-                        <option value="overdue-desc">Прострочка (зменшення)</option>
-                        <option value="days-desc">Днів прострочки</option>
-                        <option value="name-asc">Назва клієнта</option>
                     </select>
                 </div>
             </div>
@@ -606,11 +586,9 @@ function renderDebtsFilters() {
 function handleFilterChange(event) {
     console.log(`🎯 Спрацював фільтр: ${event.target.id}, значення: ${event.target.value}`);
     
-    // Получаем ссылки на все фильтры
+    // Получаем ссылки на оставшиеся фильтры
     const departmentFilterEl = document.getElementById('department-filter');
     const managerFilterEl = document.getElementById('manager-filter');
-    const debtTypeFilterEl = document.getElementById('debt-type-filter');
-    const sortFilterEl = document.getElementById('sort-filter');
     
     // Если изменился фильтр отделов, нужно обновить список менеджеров
     if (event.target.id === 'department-filter') {
@@ -621,9 +599,7 @@ function handleFilterChange(event) {
     // Собираем АКТУАЛЬНЫЕ значения ПОСЛЕ всех манипуляций
     const currentFilters = {
         department: departmentFilterEl.value,
-        manager: managerFilterEl.value,
-        debtType: debtTypeFilterEl.value,
-        sort: sortFilterEl.value
+        manager: managerFilterEl.value
     };
     
     // Передаем актуальные значения в applyFilters
@@ -639,17 +615,13 @@ function setupDebtsEventHandlers() {
     
     const departmentFilterEl = document.getElementById('department-filter');
     const managerFilterEl = document.getElementById('manager-filter');
-    const debtTypeFilterEl = document.getElementById('debt-type-filter');
-    const sortFilterEl = document.getElementById('sort-filter');
     
     console.log('📋 Найденные элементы фильтров:', {
         department: !!departmentFilterEl,
-        manager: !!managerFilterEl,
-        debtType: !!debtTypeFilterEl,
-        sort: !!sortFilterEl
+        manager: !!managerFilterEl
     });
     
-    const filters = [departmentFilterEl, managerFilterEl, debtTypeFilterEl, sortFilterEl];
+    const filters = [departmentFilterEl, managerFilterEl];
     
     filters.forEach(element => {
         if (element) {
@@ -735,17 +707,13 @@ function applyFilters(filters = {}) {
     // Проверяем элементы фильтров (для обратной совместимости)
     const managerFilterEl = document.getElementById('manager-filter');
     const departmentFilterEl = document.getElementById('department-filter');
-    const debtTypeFilterEl = document.getElementById('debt-type-filter');
-    const sortFilterEl = document.getElementById('sort-filter');
     
     console.log('📋 Елементи фільтрів знайдені:', {
         manager: !!managerFilterEl,
-        department: !!departmentFilterEl,
-        debtType: !!debtTypeFilterEl,
-        sort: !!sortFilterEl
+        department: !!departmentFilterEl
     });
     
-    if (!managerFilterEl || !departmentFilterEl || !debtTypeFilterEl || !sortFilterEl) {
+    if (!managerFilterEl || !departmentFilterEl) {
         console.error('❌ Не всі елементи фільтрів знайдені! Виходимо з applyFilters');
         return;
     }
@@ -753,14 +721,10 @@ function applyFilters(filters = {}) {
     // Получаем значения из аргументов, а если их нет — из DOM (для обратной совместимости)
     const managerFilter = filters.manager ?? managerFilterEl.value;
     const departmentFilter = filters.department ?? departmentFilterEl.value;
-    const debtTypeFilter = filters.debtType ?? debtTypeFilterEl.value;
-    const sortFilter = filters.sort ?? sortFilterEl.value;
     
     console.log('📊 Актуальні значення фільтрів:', {
         manager: managerFilter,
-        department: departmentFilter,
-        debtType: debtTypeFilter,
-        sort: sortFilter
+        department: departmentFilter
     });
     
     console.log('📊 Джерело значень:', filters.manager !== undefined ? 'з параметрів' : 'з DOM');
@@ -860,35 +824,14 @@ function applyFilters(filters = {}) {
         }
     }
     
-    if (debtTypeFilter === 'overdue') {
-        filteredData = filteredData.filter(d => d.overdueDebt > 0);
-    } else if (debtTypeFilter === 'current') {
-        filteredData = filteredData.filter(d => d.currentDebt > 0 && d.overdueDebt === 0);
-    }
-    
-    // Сортировка
-    switch(sortFilter) {
-        case 'debt-desc':
-            filteredData.sort((a, b) => b.totalDebt - a.totalDebt);
-            break;
-        case 'debt-asc':
-            filteredData.sort((a, b) => a.totalDebt - b.totalDebt);
-            break;
-        case 'overdue-desc':
-            filteredData.sort((a, b) => b.overdueDebt - a.overdueDebt);
-            break;
-        case 'days-desc':
-            filteredData.sort((a, b) => b.daysOverdue - a.daysOverdue);
-            break;
-        case 'name-asc':
-            filteredData.sort((a, b) => a.clientName.localeCompare(b.clientName));
-            break;
-    }
+    // Убрана фильтрация по типу долга и сортировка
+    // Используется стандартная сортировка по убыванию общего долга
+    filteredData.sort((a, b) => b.totalDebt - a.totalDebt);
     
     console.log('🎯 Фінальний результат фільтрації:', {
         'початкових записів': debtsData.length,
         'після фільтрації': filteredData.length,
-        'фільтри': { managerFilter, departmentFilter, debtTypeFilter, sortFilter }
+        'фільтри': { managerFilter, departmentFilter }
     });
     
     renderDebtsSummary(filteredData, false); // При фильтрации всегда используем уже загруженные данные
@@ -1497,9 +1440,7 @@ window.testDebtsFilters = function() {
     // Проверяем наличие элементов
     const elements = {
         department: document.getElementById('department-filter'),
-        manager: document.getElementById('manager-filter'),
-        debtType: document.getElementById('debt-type-filter'),
-        sort: document.getElementById('sort-filter')
+        manager: document.getElementById('manager-filter')
     };
     
     console.log('📋 Элементы фильтров:', elements);
