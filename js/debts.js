@@ -7,13 +7,13 @@ let departmentsData = [];
 let clientCommentsData = [];
 let paymentForecastsData = [];
 
-// Демо данные для дебиторки
+// Демо данные для дебиторки с реальными менеджерами из Firebase
 const DEMO_DEBTS_DATA = [
     {
         clientCode: "00-00007283",
         clientName: "ТОВ Альфа Трейд",
-        manager: "Іванов Іван",
-        department: "Відділ продажу",
+        manager: "Рафаель Єгіазаров",
+        department: "Гурт",
         totalDebt: 125000,
         overdueDebt: 85000,
         currentDebt: 40000,
@@ -28,8 +28,8 @@ const DEMO_DEBTS_DATA = [
     {
         clientCode: "00-00026426",
         clientName: "ФОП Петренко О.В.",
-        manager: "Петров Петро",
-        department: "Відділ продажу",
+        manager: "Олександра Претус",
+        department: "Гурт",
         totalDebt: 75000,
         overdueDebt: 0,
         currentDebt: 75000,
@@ -42,8 +42,8 @@ const DEMO_DEBTS_DATA = [
     {
         clientCode: "00-00010339",
         clientName: "ТОВ Бета Логістик",
-        manager: "Сидоров Сидор",
-        department: "Оптовий відділ",
+        manager: "Ольга Дідух",
+        department: "Роздріб",
         totalDebt: 200000,
         overdueDebt: 150000,
         currentDebt: 50000,
@@ -58,8 +58,8 @@ const DEMO_DEBTS_DATA = [
     {
         clientCode: "00-00008914",
         clientName: "ПП Гамма Дистрибуція",
-        manager: "Коваленко Анна",
-        department: "Оптовий відділ",
+        manager: "Ангеліна Мудрицька",
+        department: "Гурт",
         totalDebt: 95000,
         overdueDebt: 30000,
         currentDebt: 65000,
@@ -73,8 +73,8 @@ const DEMO_DEBTS_DATA = [
     {
         clientCode: "00-00015627",
         clientName: "ТОВ Дельта Плюс",
-        manager: "Мельник Олег",
-        department: "Роздрібний відділ",
+        manager: "Юрій Суховецький",
+        department: "Роздріб",
         totalDebt: 45000,
         overdueDebt: 45000,
         currentDebt: 0,
@@ -137,7 +137,7 @@ export function initDebtsModule(container) {
 /**
  * Преобразование данных API в внутренний формат
  */
-function transformApiDataToInternalFormat(apiData) {
+function transformApiDataToInternalFormat(apiData, isUsingDemoData = false) {
     if (!Array.isArray(apiData)) {
         console.error('API вернуло не массив:', apiData);
         return [];
@@ -158,14 +158,29 @@ function transformApiDataToInternalFormat(apiData) {
         // ВАЖНО: Ищем менеджера в Firebase данных, а не используем из API
         const managerFromFirebase = findManagerInFirebaseData(managerNameFromAPI);
         
-        // Если менеджер не найден в Firebase, пропускаем эту запись
-        if (!managerFromFirebase && managersData.length > 0) {
+        // Если менеджер не найден в Firebase И у нас есть Firebase данные И это не демо данные
+        if (!managerFromFirebase && managersData.length > 0 && !isUsingDemoData) {
             console.log(`⚠️ Менеджер "${managerNameFromAPI}" не знайдений у Firebase, пропускаємо клієнта ${clientName}`);
             return;
         }
         
+        // Для демо данных используем оригинальные имена
+        if (isUsingDemoData && !managerFromFirebase) {
+            console.log(`🔄 Демо режим: використовуємо оригінальне ім'я менеджера "${managerNameFromAPI}"`);
+        }
+        
         const finalManagerName = managerFromFirebase ? managerFromFirebase.name : (managerNameFromAPI || 'Невизначений менеджер');
-        const finalDepartment = managerFromFirebase ? getManagerDepartmentFromFirebase(managerFromFirebase) : 'Невизначений відділ';
+        
+        let finalDepartment;
+        if (managerFromFirebase) {
+            finalDepartment = getManagerDepartmentFromFirebase(managerFromFirebase);
+        } else if (isUsingDemoData) {
+            // Для демо данных ищем отдел в DEMO_DEBTS_DATA
+            const demoClient = DEMO_DEBTS_DATA.find(demo => demo.clientCode === clientCode);
+            finalDepartment = demoClient ? demoClient.department : 'Демо відділ';
+        } else {
+            finalDepartment = 'Невизначений відділ';
+        }
         
         if (!clientsMap.has(clientCode)) {
             clientsMap.set(clientCode, {
@@ -423,13 +438,13 @@ export async function loadDebtsData() {
             console.log('Відділи:', departmentsData.map(d => `${d.name} (${d.id})`));
         }
         
-        // Преобразуем данные API в нужный формат
-        debtsData = transformApiDataToInternalFormat(apiDebtsData);
-        
         // Проверяем, используются ли демо данные
         const isUsingDemoData = apiDebtsData === DEMO_DEBTS_DATA || 
                                (Array.isArray(apiDebtsData) && apiDebtsData.length > 0 && 
                                 apiDebtsData[0]["Главный контрагент"] === "ТОВ Альфа Трейд");
+        
+        // Преобразуем данные API в нужный формат
+        debtsData = transformApiDataToInternalFormat(apiDebtsData, isUsingDemoData);
         
         console.log('Завантажено записів дебіторки:', debtsData.length);
         console.log('Приклад даних:', debtsData[0]);
@@ -550,25 +565,44 @@ function renderDebtsFilters() {
         
         console.log('🔧 Фільтри: використовуються дані з Firebase');
     } else {
-        // Fallback: используем данные из API долгов
-        console.log('⚠️ Fallback: використовуємо дані з API долгів');
-        console.log('debtsData:', debtsData);
+        // Fallback: используем данные из долгов или демо данные
+        console.log('⚠️ Fallback: Firebase дані недоступні');
+        console.log('debtsData.length:', debtsData.length);
         
-        const uniqueDepartments = [...new Set(debtsData.map(d => d.department))].filter(Boolean);
-        const uniqueManagers = [...new Set(debtsData.map(d => d.manager))].filter(Boolean);
-        
-        console.log('uniqueDepartments:', uniqueDepartments);
-        console.log('uniqueManagers:', uniqueManagers);
-        
-        departmentOptions = uniqueDepartments.map(dept => 
-            `<option value="${dept}">${dept}</option>`
-        ).join('');
-        
-        managerOptions = uniqueManagers.map(manager => 
-            `<option value="${manager}">${manager}</option>`
-        ).join('');
-        
-        console.log('⚠️ Фільтри: використовуються дані з API долгів (fallback)');
+        if (debtsData.length > 0) {
+            // Используем обработанные данные долгов
+            const uniqueDepartments = [...new Set(debtsData.map(d => d.department))].filter(Boolean);
+            const uniqueManagers = [...new Set(debtsData.map(d => d.manager))].filter(Boolean);
+            
+            console.log('uniqueDepartments:', uniqueDepartments);
+            console.log('uniqueManagers:', uniqueManagers);
+            
+            departmentOptions = uniqueDepartments.map(dept => 
+                `<option value="${dept}">${dept}</option>`
+            ).join('');
+            
+            managerOptions = uniqueManagers.map(manager => 
+                `<option value="${manager}">${manager}</option>`
+            ).join('');
+            
+            console.log('✅ Фільтри з оброблених даних долгів');
+        } else {
+            // Используем демо данные для фильтров
+            console.log('⚠️ Використовуємо демо дані для фільтрів');
+            
+            const demoDepartments = [...new Set(DEMO_DEBTS_DATA.map(d => d.department))];
+            const demoManagers = [...new Set(DEMO_DEBTS_DATA.map(d => d.manager))];
+            
+            departmentOptions = demoDepartments.map(dept => 
+                `<option value="${dept}">${dept}</option>`
+            ).join('');
+            
+            managerOptions = demoManagers.map(manager => 
+                `<option value="${manager}">${manager}</option>`
+            ).join('');
+            
+            console.log('⚠️ Фільтри з демо даних:', { demoDepartments, demoManagers });
+        }
     }
     
     filtersContainer.innerHTML = `
