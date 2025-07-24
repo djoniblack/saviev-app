@@ -441,8 +441,21 @@ export async function loadDebtsData() {
         }
         
         hideLoadingState();
+        
+        // ВАЖНО: Рендерим фильтры и обработчики ПОСЛЕ обработки всех данных
+        console.log('🔧 Ініціалізація інтерфейсу...');
+        console.log('📊 Стан даних перед рендерингом фільтрів:');
+        console.log('- managersData.length:', managersData.length);
+        console.log('- departmentsData.length:', departmentsData.length);
+        console.log('- debtsData.length:', debtsData.length);
+        
         renderDebtsFilters();        // Рендерит HTML фильтров
-        setupDebtsEventHandlers();   // СРАЗУ ПОСЛЕ ЭТОГО назначает обработчики
+        
+        // Небольшая задержка чтобы убедиться что все DOM элементы созданы
+        setTimeout(() => {
+            setupDebtsEventHandlers();   // Назначает обработчики
+            console.log('✅ Обробники подій налаштовані з затримкою');
+        }, 100);
         renderDebtsSummary(debtsData, isUsingDemoData);
         renderDebtsGroupedByManager();
         
@@ -511,8 +524,10 @@ function renderDebtsFilters() {
     if (departmentsData.length > 0 && managersData.length > 0) {
         // Используем данные из Firebase
         console.log('✅ Використовуємо дані з Firebase');
-        console.log('Departments:', departmentsData);
-        console.log('Managers:', managersData);
+        console.log('- Departments доступно:', departmentsData.length);
+        console.log('- Managers доступно:', managersData.length);
+        console.log('Departments:', departmentsData.map(d => ({ id: d.id, name: d.name })));
+        console.log('Managers:', managersData.map(m => ({ id: m.id, name: m.name, departmentId: m.departmentId })));
         
         departmentOptions = departmentsData.map(dept => 
             `<option value="${dept.id}">${dept.name}</option>`

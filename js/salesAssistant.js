@@ -316,11 +316,19 @@ function renderSalesAssistantMain(mainBlock) {
                 }
             }
             statusContainer.classList.add('hidden');
-            // Проверяем, что мы не на странице debts
+            // Проверяем, что мы не на странице debts и не в режиме debts
             const currentPage = document.querySelector('.page.active')?.id;
-            if (currentPage !== 'debts-page') {
+            const isDebtsContext = currentPage === 'debts-page' || 
+                                 document.querySelector('#debts-filters-container') !== null ||
+                                 window.location.hash.includes('debts');
+            
+            console.log('[salesAssistant] Проверка контекста:', { currentPage, isDebtsContext });
+            
+            if (!isDebtsContext) {
                 populateDepartmentFilter();
                 populateManagerFilter();
+            } else {
+                console.log('[salesAssistant] Пропускаем populateManagerFilter - обнаружен debts контекст');
             }
             analysisSection.classList.remove('hidden');
 
@@ -461,10 +469,18 @@ function renderSalesAssistantMain(mainBlock) {
 
     // --- Додаю обробник для departmentFilter ---
     departmentFilter.onchange = () => {
-        // Проверяем, что мы не на странице debts
+        // Проверяем, что мы не на странице debts и не в режиме debts
         const currentPage = document.querySelector('.page.active')?.id;
-        if (currentPage !== 'debts-page') {
+        const isDebtsContext = currentPage === 'debts-page' || 
+                             document.querySelector('#debts-filters-container') !== null ||
+                             window.location.hash.includes('debts');
+        
+        console.log('[salesAssistant] departmentFilter.onchange проверка:', { currentPage, isDebtsContext });
+        
+        if (!isDebtsContext) {
             populateManagerFilter();
+        } else {
+            console.log('[salesAssistant] Пропускаем populateManagerFilter при смене отдела - debts контекст');
         }
         // Скидаємо вибір менеджера і клієнта
         managerFilter.value = '';
