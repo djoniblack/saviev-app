@@ -7,84 +7,7 @@ let departmentsData = [];
 let clientCommentsData = [];
 let paymentForecastsData = [];
 
-// Демо данные для дебиторки с реальными менеджерами из Firebase
-const DEMO_DEBTS_DATA = [
-    {
-        clientCode: "00-00007283",
-        clientName: "ТОВ Альфа Трейд",
-        manager: "Рафаель Єгіазаров",
-        department: "Гурт",
-        totalDebt: 125000,
-        overdueDebt: 85000,
-        currentDebt: 40000,
-        lastPayment: "2024-11-15",
-        daysOverdue: 45,
-        invoices: [
-            { number: "INV-2024-001", date: "2024-10-01", amount: 50000, dueDate: "2024-10-31", status: "overdue" },
-            { number: "INV-2024-002", date: "2024-11-01", amount: 35000, dueDate: "2024-11-30", status: "overdue" },
-            { number: "INV-2024-003", date: "2024-12-01", amount: 40000, dueDate: "2024-12-31", status: "current" }
-        ]
-    },
-    {
-        clientCode: "00-00026426",
-        clientName: "ФОП Петренко О.В.",
-        manager: "Олександра Претус",
-        department: "Гурт",
-        totalDebt: 75000,
-        overdueDebt: 0,
-        currentDebt: 75000,
-        lastPayment: "2024-12-01",
-        daysOverdue: 0,
-        invoices: [
-            { number: "INV-2024-004", date: "2024-12-05", amount: 75000, dueDate: "2025-01-05", status: "current" }
-        ]
-    },
-    {
-        clientCode: "00-00010339",
-        clientName: "ТОВ Бета Логістик",
-        manager: "Ольга Дідух",
-        department: "Роздріб",
-        totalDebt: 200000,
-        overdueDebt: 150000,
-        currentDebt: 50000,
-        lastPayment: "2024-10-20",
-        daysOverdue: 60,
-        invoices: [
-            { number: "INV-2024-005", date: "2024-09-15", amount: 100000, dueDate: "2024-10-15", status: "overdue" },
-            { number: "INV-2024-006", date: "2024-10-01", amount: 50000, dueDate: "2024-11-01", status: "overdue" },
-            { number: "INV-2024-007", date: "2024-12-10", amount: 50000, dueDate: "2025-01-10", status: "current" }
-        ]
-    },
-    {
-        clientCode: "00-00008914",
-        clientName: "ПП Гамма Дистрибуція",
-        manager: "Ангеліна Мудрицька",
-        department: "Гурт",
-        totalDebt: 95000,
-        overdueDebt: 30000,
-        currentDebt: 65000,
-        lastPayment: "2024-11-20",
-        daysOverdue: 25,
-        invoices: [
-            { number: "INV-2024-008", date: "2024-11-01", amount: 30000, dueDate: "2024-12-01", status: "overdue" },
-            { number: "INV-2024-009", date: "2024-12-10", amount: 65000, dueDate: "2025-01-10", status: "current" }
-        ]
-    },
-    {
-        clientCode: "00-00015627",
-        clientName: "ТОВ Дельта Плюс",
-        manager: "Юрій Суховецький",
-        department: "Роздріб",
-        totalDebt: 45000,
-        overdueDebt: 45000,
-        currentDebt: 0,
-        lastPayment: "2024-09-30",
-        daysOverdue: 75,
-        invoices: [
-            { number: "INV-2024-010", date: "2024-09-15", amount: 45000, dueDate: "2024-10-15", status: "overdue" }
-        ]
-    }
-];
+
 
 /**
  * Главная функция инициализации модуля дебиторки
@@ -137,7 +60,7 @@ export function initDebtsModule(container) {
 /**
  * Преобразование данных API в внутренний формат
  */
-function transformApiDataToInternalFormat(apiData, isUsingDemoData = false) {
+function transformApiDataToInternalFormat(apiData) {
     if (!Array.isArray(apiData)) {
         console.error('API вернуло не массив:', apiData);
         return [];
@@ -158,29 +81,15 @@ function transformApiDataToInternalFormat(apiData, isUsingDemoData = false) {
         // ВАЖНО: Ищем менеджера в Firebase данных, а не используем из API
         const managerFromFirebase = findManagerInFirebaseData(managerNameFromAPI);
         
-        // Если менеджер не найден в Firebase И у нас есть Firebase данные И это не демо данные
-        if (!managerFromFirebase && managersData.length > 0 && !isUsingDemoData) {
+        // Если менеджер не найден в Firebase, пропускаем эту запись
+        if (!managerFromFirebase && managersData.length > 0) {
             console.log(`⚠️ Менеджер "${managerNameFromAPI}" не знайдений у Firebase, пропускаємо клієнта ${clientName}`);
             return;
         }
         
-        // Для демо данных используем оригинальные имена
-        if (isUsingDemoData && !managerFromFirebase) {
-            console.log(`🔄 Демо режим: використовуємо оригінальне ім'я менеджера "${managerNameFromAPI}"`);
-        }
-        
         const finalManagerName = managerFromFirebase ? managerFromFirebase.name : (managerNameFromAPI || 'Невизначений менеджер');
         
-        let finalDepartment;
-        if (managerFromFirebase) {
-            finalDepartment = getManagerDepartmentFromFirebase(managerFromFirebase);
-        } else if (isUsingDemoData) {
-            // Для демо данных ищем отдел в DEMO_DEBTS_DATA
-            const demoClient = DEMO_DEBTS_DATA.find(demo => demo.clientCode === clientCode);
-            finalDepartment = demoClient ? demoClient.department : 'Демо відділ';
-        } else {
-            finalDepartment = 'Невизначений відділ';
-        }
+        const finalDepartment = managerFromFirebase ? getManagerDepartmentFromFirebase(managerFromFirebase) : 'Невизначений відділ';
         
         if (!clientsMap.has(clientCode)) {
             clientsMap.set(clientCode, {
@@ -368,23 +277,14 @@ export async function loadDebtsData() {
                 })
                 .catch(error => {
                     console.error('❌ Помилка завантаження з API дебіторки:', error);
-                    console.warn('⚠️ Використовуються демо дані як fallback');
                     
                     // Показываем уведомление пользователю
                     if (typeof window.showNotification === 'function') {
-                        window.showNotification('Не вдалося завантажити дані з сервера. Показано демо дані.', 'warning');
+                        window.showNotification('Не вдалося завантажити дані з сервера. Модуль недоступний.', 'error');
                     }
                     
-                    // Возвращаем демо данные в формате API
-                    return DEMO_DEBTS_DATA.map(item => ({
-                        "Главный контрагент": item.clientName,
-                        "Главный контрагент.Код": item.clientCode,
-                        "Договор": "Основний договір",
-                        "Долг": item.totalDebt,
-                        "Клиент": item.clientName,
-                        "Клиент.Код": item.clientCode,
-                        "Менеджер": item.manager
-                    }));
+                    // Возвращаем пустой массив
+                    return [];
                 })
         ];
         
@@ -438,22 +338,12 @@ export async function loadDebtsData() {
             console.log('Відділи:', departmentsData.map(d => `${d.name} (${d.id})`));
         }
         
-        // Проверяем, используются ли демо данные
-        const isUsingDemoData = apiDebtsData === DEMO_DEBTS_DATA || 
-                               (Array.isArray(apiDebtsData) && apiDebtsData.length > 0 && 
-                                apiDebtsData[0]["Главный контрагент"] === "ТОВ Альфа Трейд");
-        
         // Преобразуем данные API в нужный формат
-        debtsData = transformApiDataToInternalFormat(apiDebtsData, isUsingDemoData);
+        debtsData = transformApiDataToInternalFormat(apiDebtsData);
         
         console.log('Завантажено записів дебіторки:', debtsData.length);
         console.log('Приклад даних:', debtsData[0]);
-        
-        if (isUsingDemoData) {
-            console.warn('🔄 Увага: Відображаються демонстраційні дані');
-        } else {
-            console.log('✅ Завантажено реальні дані з API');
-        }
+        console.log('✅ Завантажено дані з API');
         
         hideLoadingState();
         
@@ -471,7 +361,7 @@ export async function loadDebtsData() {
             setupDebtsEventHandlers();   // Назначает обработчики
             console.log('✅ Обробники подій налаштовані з затримкою');
         }, 100);
-        renderDebtsSummary(debtsData, isUsingDemoData);
+        renderDebtsSummary(debtsData);
         renderDebtsGroupedByManager();
         
     } catch (error) {
@@ -587,21 +477,10 @@ function renderDebtsFilters() {
             
             console.log('✅ Фільтри з оброблених даних долгів');
         } else {
-            // Используем демо данные для фильтров
-            console.log('⚠️ Використовуємо демо дані для фільтрів');
-            
-            const demoDepartments = [...new Set(DEMO_DEBTS_DATA.map(d => d.department))];
-            const demoManagers = [...new Set(DEMO_DEBTS_DATA.map(d => d.manager))];
-            
-            departmentOptions = demoDepartments.map(dept => 
-                `<option value="${dept}">${dept}</option>`
-            ).join('');
-            
-            managerOptions = demoManagers.map(manager => 
-                `<option value="${manager}">${manager}</option>`
-            ).join('');
-            
-            console.log('⚠️ Фільтри з демо даних:', { demoDepartments, demoManagers });
+            // Нет данных - пустые фильтры
+            console.log('⚠️ Немає даних для фільтрів');
+            departmentOptions = '';
+            managerOptions = '';
         }
     }
     
@@ -883,7 +762,7 @@ function applyFilters(filters = {}) {
         'фільтри': { managerFilter, departmentFilter }
     });
     
-    renderDebtsSummary(filteredData, false); // При фильтрации всегда используем уже загруженные данные
+    renderDebtsSummary(filteredData);
     renderDebtsGroupedByManager(filteredData);
     
     console.log('🔍 =================== applyFilters КІНЕЦЬ ===================');
@@ -892,7 +771,7 @@ function applyFilters(filters = {}) {
 /**
  * Рендеринг сводки
  */
-function renderDebtsSummary(data = debtsData, isDemo = false) {
+function renderDebtsSummary(data = debtsData) {
     const summaryContainer = document.getElementById('debts-summary-container');
     if (!summaryContainer) return;
     
@@ -905,15 +784,6 @@ function renderDebtsSummary(data = debtsData, isDemo = false) {
                           (data.filter(d => d.daysOverdue > 0).length || 1);
     
     summaryContainer.innerHTML = `
-        ${isDemo ? `
-            <div class="bg-orange-900 border border-orange-600 rounded-lg p-3 mb-4 flex items-center gap-3">
-                <div class="text-orange-400">⚠️</div>
-                <div>
-                    <div class="text-orange-200 font-medium">Демонстраційні дані</div>
-                    <div class="text-orange-300 text-sm">Сервер недоступний. Показано тестові дані для демонстрації.</div>
-                </div>
-            </div>
-        ` : ''}
         <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
             <div class="bg-gray-700 rounded-lg p-4">
                 <div class="text-2xl font-bold text-white">${clientsCount}</div>
