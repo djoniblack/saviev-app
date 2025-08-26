@@ -431,12 +431,77 @@ export async function initSmartDayModule(container) {
     container.innerHTML = `<div class='bg-red-900 text-white rounded-lg p-6 text-center text-lg'>У вас немає доступу до модуля \"Створи мій день\"</div>`;
     return;
   }
-  container.innerHTML = `<div class=\"p-6\"><h1 class=\"text-3xl font-bold mb-6\">Створи мій день</h1><div id=\"smartday-filters\" class=\"mb-6\"></div><div id=\"smartday-tasks\"></div></div>`;
+  
+  container.innerHTML = `
+    <div class="p-6">
+      <h1 class="text-3xl font-bold mb-6">Створи мій день</h1>
+      
+      <!-- Індикатор завантаження -->
+      <div id="smartday-loading-container" class="text-center p-8">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
+        <div>
+          <p id="smartday-loading-message" class="text-lg font-medium text-gray-200 mb-2">Створення вашого дня...</p>
+          <div class="bg-gray-700 rounded-full h-2 max-w-md mx-auto mb-2">
+            <div id="smartday-progress-bar" class="bg-green-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <p id="smartday-loading-step" class="text-sm text-gray-400">Ініціалізація...</p>
+        </div>
+      </div>
+      
+      <!-- Основний контент (спочатку прихований) -->
+      <div id="smartday-main-content" class="hidden">
+        <div id="smartday-filters" class="mb-6"></div>
+        <div id="smartday-tasks"></div>
+      </div>
+    </div>
+  `;
+  // Функции управления загрузкой
+  function updateSmartDayProgress(percent, message, step) {
+    const progressBar = container.querySelector('#smartday-progress-bar');
+    const loadingMessage = container.querySelector('#smartday-loading-message');
+    const loadingStep = container.querySelector('#smartday-loading-step');
+    
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (loadingMessage) loadingMessage.textContent = message;
+    if (loadingStep) loadingStep.textContent = step;
+  }
+  
+  function showSmartDayContent() {
+    const loadingContainer = container.querySelector('#smartday-loading-container');
+    const mainContent = container.querySelector('#smartday-main-content');
+    
+    if (loadingContainer) loadingContainer.classList.add('hidden');
+    if (mainContent) mainContent.classList.remove('hidden');
+  }
+  
+  function showSmartDayError(errorMessage) {
+    const loadingContainer = container.querySelector('#smartday-loading-container');
+    if (loadingContainer) {
+      loadingContainer.innerHTML = `
+        <div class="text-center p-8">
+          <div class="text-red-500 text-6xl mb-4">⚠️</div>
+          <p class="text-lg font-medium text-red-400 mb-2">Помилка завантаження</p>
+          <p class="text-sm text-gray-400">${errorMessage}</p>
+          <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            Спробувати ще раз
+          </button>
+        </div>
+      `;
+    }
+  }
+
+  try {
+    updateSmartDayProgress(10, 'Ініціалізація...', 'Підготовка до завантаження');
+    
   const filtersDiv = container.querySelector('#smartday-filters');
   const tasksDiv = container.querySelector('#smartday-tasks');
 
+    updateSmartDayProgress(20, 'Завантаження даних...', 'Отримання відділів та менеджерів');
+
   // Завантажуємо відділи, менеджерів, співробітників
   const { departments, managers, employees } = await loadDepartmentsAndManagers();
+    
+    updateSmartDayProgress(40, 'Аналіз користувача...', 'Визначення доступів та ролей');
 
   // --- Авто-селект для поточного користувача ---
   let autoSelectedDepartment = '';
@@ -488,102 +553,73 @@ export async function initSmartDayModule(container) {
     </label>
   `;
   const depSelect = filtersDiv.querySelector('#smartday-department');
-  const manSelect = filtersDiv.querySelector('#smartday-manager');
+    const managersSelect = filtersDiv.querySelector('#smartday-manager');
+    depSelect.onchange = e => {
+      const depId = e.target.value;
+      const filteredManagers = depId ? managers.filter(m => m.departmentId === depId || (m.department && m.department.id === depId)) : managers;
+      managersSelect.innerHTML = '<option value="">Оберіть менеджера...</option>' +
+        filteredManagers.map(m => `<option value='${m.id}'>${m.name}</option>`).join('');
+      managersSelect.disabled = !depId;
+      genAndRenderTasks();
+    };
+    managersSelect.onchange = () => genAndRenderTasks();
 
-  // --- Встановлюємо авто-селект значення ---
+    // --- Встановлюємо авто-селект ---
   if (autoSelectedDepartment) {
     depSelect.value = autoSelectedDepartment;
+      
+      updateSmartDayProgress(80, 'Генерація задач...', 'Створення персоналізованих рекомендацій');
     depSelect.dispatchEvent(new Event('change'));
   }
-  depSelect.onchange = async () => {
-    const depId = depSelect.value;
-    const filteredManagers = depId ? managers.filter(m => {
-      if (!m.department) return false;
-      if (typeof m.department === 'object' && m.department.id) {
-        return m.department.id === depId;
-      } else if (typeof m.department === 'string') {
-        return m.department === depId;
+
+    // --- Функція генерації та рендеру задач ---
+    async function genAndRenderTasks() {
+      const selectedManagerId = managersSelect.value;
+      if (!selectedManagerId) {
+        tasksDiv.innerHTML = '<div class="text-gray-400">Оберіть менеджера для генерації задач.</div>';
+        return;
       }
-      return false;
-    }) : managers;
-    manSelect.innerHTML = `<option value=''>Оберіть менеджера...</option>` + filteredManagers.map(m => `<option value='${m.id}'>${m.name}</option>`).join('');
-    manSelect.disabled = false;
-    tasksDiv.innerHTML = '';
-    // Якщо авто-селект менеджера (наприклад, для менеджера)
-    if (autoSelectedManager && filteredManagers.some(m => m.id === autoSelectedManager)) {
-      manSelect.value = autoSelectedManager;
-      manSelect.dispatchEvent(new Event('change'));
-      autoSelectedManager = '';
-    }
-  };
-  // Якщо авто-селект менеджера без вибору відділу
-  if (autoSelectedManager && managers.some(m => m.id === autoSelectedManager)) {
-    manSelect.innerHTML = `<option value=''>Оберіть менеджера...</option>` + managers.map(m => `<option value='${m.id}'>${m.name}</option>`).join('');
-    manSelect.disabled = false;
-    manSelect.value = autoSelectedManager;
-    manSelect.dispatchEvent(new Event('change'));
-    autoSelectedManager = '';
-  }
-  manSelect.onchange = async () => {
-    const managerId = manSelect.value;
-    if (!managerId) {
-      tasksDiv.innerHTML = '';
+      try {
+                 const salesData = await loadSalesData();
+        const focusTasksData = await loadFocusTasks(companyId);
+        const smartDayTasks = await generateSmartDayTaskGroups(selectedManagerId, employees, salesData, focusTasksData, {});
+        if (smartDayTasks.length === 0) {
+          tasksDiv.innerHTML = '<div class="text-gray-400">Немає задач для цього менеджера.</div>';
       return;
     }
-    tasksDiv.innerHTML = `<div class='text-gray-400'>Генерація задач для менеджера...</div>`;
-    const [sales, focusTasks, clientLinks] = await Promise.all([
-      getAllSalesData(),
-      loadFocusTasks(companyId),
-      loadClientLinks()
-    ]);
-    const taskGroups = await generateSmartDayTaskGroups(managerId, employees, sales, focusTasks, clientLinks);
-    // --- Підвантажуємо нотатки для фокусних задач ---
-    const notesByTask = {};
-    for (const group of taskGroups) {
-      if (group.id.startsWith('focus-')) {
-        const taskId = group.id.replace('focus-', '');
-        notesByTask[group.id] = await getFocusNotes(taskId);
-      }
-    }
-    tasksDiv.innerHTML = renderTaskGroups(taskGroups, notesByTask);
-    // --- Обробка чекбоксів, дат, коментарів для фокуса ---
-    for (const group of taskGroups) {
-      if (group.id.startsWith('focus-')) {
-        const taskId = group.id.replace('focus-', '');
-        group.clients.forEach(client => {
-          const code = client.code;
-          // Пропозиція (done)
-          tasksDiv.querySelectorAll(`.focus-done[data-clientid='${code}']`).forEach(cb => {
-            cb.addEventListener('change', async e => {
-              const li = cb.closest('li');
-              const commDate = li.querySelector('.focus-commdate')?.value || '';
-              const comment = li.querySelector('.focus-comment')?.value || '';
-              await setFocusNote(taskId, code, { done: cb.checked, commDate, comment });
-              li.classList.toggle('opacity-50', cb.checked);
-            });
-          });
-          // Дата комунікації
-          tasksDiv.querySelectorAll(`.focus-commdate[data-clientid='${code}']`).forEach(input => {
-            input.addEventListener('change', async e => {
-              const li = input.closest('li');
-              const done = li.querySelector('.focus-done')?.checked || false;
-              const comment = li.querySelector('.focus-comment')?.value || '';
-              await setFocusNote(taskId, code, { done, commDate: input.value, comment });
-            });
-          });
-          // Коментар
-          tasksDiv.querySelectorAll(`.focus-comment[data-clientid='${code}']`).forEach(input => {
-            input.addEventListener('change', async e => {
-              const li = input.closest('li');
-              const done = li.querySelector('.focus-done')?.checked || false;
-              const commDate = li.querySelector('.focus-commdate')?.value || '';
-              await setFocusNote(taskId, code, { done, commDate, comment: input.value });
-            });
-          });
-        });
-      }
-    }
-    // --- Обробка розгортання по пріоритету ---
+        // Рендеримо задачі
+        tasksDiv.innerHTML = smartDayTasks.map((group, groupIdx) => {
+          if (!group.clients || group.clients.length === 0) return '';
+          return `
+            <div class="bg-gray-900 rounded-lg p-4 mb-4">
+              <h3 class="text-lg font-bold text-orange-300 mb-3">${group.title}</h3>
+              ${['high','medium','low'].map(prio => {
+                const prioClients = group.clients.filter(c => c.priority === prio);
+                if (prioClients.length === 0) return '';
+                const prioLabel = prio === 'high' ? 'Високий пріоритет' : prio === 'medium' ? 'Середній пріоритет' : 'Низький пріоритет';
+                const prioColor = prio === 'high' ? 'text-red-400' : prio === 'medium' ? 'text-yellow-400' : 'text-green-400';
+                return `
+                  <div class="mb-3">
+                    <div class="flex justify-between items-center">
+                      <h4 class="${prioColor} font-semibold">${prioLabel} (${prioClients.length})</h4>
+                      <button class="toggle-prio text-xs bg-gray-700 px-2 py-1 rounded" data-prio="${prio}">Показати</button>
+                    </div>
+                    <div class="client-prio-list mt-2" data-prio="${prio}" style="display:none">
+                      ${prioClients.map(client => `
+                        <div class="bg-gray-800 rounded p-2 mb-2 text-sm">
+                          <div class="font-medium">${client.name}</div>
+                          ${client.lastSale ? `<div class="text-gray-400 text-xs">Остання покупка: ${client.lastSale}</div>` : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }).join('');
+
+        // Додаємо обробники для toggle кнопок
     tasksDiv.querySelectorAll('.toggle-prio').forEach(btn => {
       btn.addEventListener('click', e => {
         const prio = btn.dataset.prio;
@@ -594,7 +630,22 @@ export async function initSmartDayModule(container) {
         }
       });
     });
-  };
+      } catch (err) {
+        tasksDiv.innerHTML = '<div class="text-red-400">Помилка генерації задач: ' + err.message + '</div>';
+      }
+    }
+    
+    updateSmartDayProgress(100, 'Готово!', 'Ваш день успішно створено');
+    
+    // Задержка чтобы пользователь увидел 100%
+    setTimeout(() => {
+      showSmartDayContent();
+    }, 500);
+    
+  } catch (error) {
+    console.error('❌ Помилка завантаження модуля Створи мій день:', error);
+    showSmartDayError(error.message || 'Невідома помилка');
+  }
 }
 
 if (typeof window !== 'undefined') {

@@ -5,77 +5,150 @@ export async function initDashboardPage(container) {
   container.innerHTML = `
     <div class="w-full max-w-7xl flex flex-col gap-8 py-8 mx-auto">
       <h1 class="text-3xl font-bold mb-4 text-white">Головний дашборд</h1>
-      <div id="dashboard-tabs" class="flex gap-2 mb-6">
-        <button class="dashboard-tab-btn btn btn-primary" data-tab="main">Загальні метрики</button>
-        <button class="dashboard-tab-btn btn btn-secondary" data-tab="lost">Втрачено клієнтів</button>
-        <button class="dashboard-tab-btn btn btn-secondary" data-tab="inactive">Неактивні клієнти</button>
-        <button class="dashboard-tab-btn btn btn-secondary" data-tab="dynamics">Динаміка продаж</button>
-        <button class="dashboard-tab-btn btn btn-secondary" data-tab="quality">Якість бази</button>
-      </div>
-      <div id="dashboard-filters" class="mb-6 bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 flex flex-wrap gap-4"></div>
-      <div id="dashboard-tab-main" class="dashboard-tab-section">
-        <div id="kpi-cards" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
-          <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4">
-            <h2 class="text-lg font-bold mb-2">Продажі по менеджерах</h2>
-            <canvas id="salesByManagerChart" height="180"></canvas>
+      
+      <!-- Індикатор завантаження -->
+      <div id="dashboard-loading-container" class="text-center p-8">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+        <div>
+          <p id="dashboard-loading-message" class="text-lg font-medium text-gray-200 mb-2">Завантаження даних...</p>
+          <div class="bg-gray-700 rounded-full h-2 max-w-md mx-auto mb-2">
+            <div id="dashboard-progress-bar" class="bg-indigo-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
           </div>
-          <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4">
-            <h2 class="text-lg font-bold mb-2">Клієнти по менеджерах</h2>
-            <canvas id="clientsByManagerChart" height="180"></canvas>
+          <p id="dashboard-loading-step" class="text-sm text-gray-400">Ініціалізація...</p>
+        </div>
+      </div>
+      
+      <!-- Основний контент (спочатку прихований) -->
+      <div id="dashboard-main-content" class="hidden">
+        <div id="dashboard-tabs" class="flex gap-2 mb-6">
+          <button class="dashboard-tab-btn btn btn-primary" data-tab="main">Загальні метрики</button>
+          <button class="dashboard-tab-btn btn btn-secondary" data-tab="lost">Втрачено клієнтів</button>
+          <button class="dashboard-tab-btn btn btn-secondary" data-tab="inactive">Неактивні клієнти</button>
+          <button class="dashboard-tab-btn btn btn-secondary" data-tab="dynamics">Динаміка продаж</button>
+          <button class="dashboard-tab-btn btn btn-secondary" data-tab="quality">Якість бази</button>
+        </div>
+        <div id="dashboard-filters" class="mb-6 bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 flex flex-wrap gap-4"></div>
+        <div id="dashboard-tab-main" class="dashboard-tab-section">
+          <div id="kpi-cards" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4">
+              <h2 class="text-lg font-bold mb-2">Продажі по менеджерах</h2>
+              <canvas id="salesByManagerChart" height="180"></canvas>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4">
+              <h2 class="text-lg font-bold mb-2">Клієнти по менеджерах</h2>
+              <canvas id="clientsByManagerChart" height="180"></canvas>
+            </div>
+          </div>
+          <div id="top-managers-section"></div>
+        </div>
+        <div id="dashboard-tab-lost" class="dashboard-tab-section hidden">
+          <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 mb-6">
+            <h2 class="text-lg font-bold mb-2">Втрачено клієнтів по менеджерах/відділах</h2>
+            <div id="lostClientsTable"></div>
+          </div>
+          <!-- Здесь можно добавить расширенные метрики и графики по потерянным клиентам -->
+        </div>
+        <div id="dashboard-tab-inactive" class="dashboard-tab-section hidden">
+          <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 mb-6">
+            <h2 class="text-lg font-bold mb-2">Неактивні клієнти по менеджерах/відділах</h2>
+            <div id="inactiveClientsTable"></div>
+          </div>
+          <!-- Здесь можно добавить расширенные метрики и графики по неактивным клиентам -->
+        </div>
+        <div id="dashboard-tab-dynamics" class="dashboard-tab-section hidden">
+          <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 mb-6">
+            <h2 class="text-lg font-bold mb-2">Динаміка продаж</h2>
+            <!-- Здесь будут графики и таблицы динамики -->
+            <div id="dynamics-placeholder" class="text-gray-400">(Динаміка продаж — в розробці)</div>
           </div>
         </div>
-        <div id="top-managers-section"></div>
-      </div>
-      <div id="dashboard-tab-lost" class="dashboard-tab-section hidden">
-        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 mb-6">
-          <h2 class="text-lg font-bold mb-2">Втрачено клієнтів по менеджерах/відділах</h2>
-          <div id="lostClientsTable"></div>
-        </div>
-        <!-- Здесь можно добавить расширенные метрики и графики по потерянным клиентам -->
-      </div>
-      <div id="dashboard-tab-inactive" class="dashboard-tab-section hidden">
-        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 mb-6">
-          <h2 class="text-lg font-bold mb-2">Неактивні клієнти по менеджерах/відділах</h2>
-          <div id="inactiveClientsTable"></div>
-        </div>
-        <!-- Здесь можно добавить расширенные метрики и графики по неактивным клиентам -->
-      </div>
-      <div id="dashboard-tab-dynamics" class="dashboard-tab-section hidden">
-        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 mb-6">
-          <h2 class="text-lg font-bold mb-2">Динаміка продаж</h2>
-          <!-- Здесь будут графики и таблицы динамики -->
-          <div id="dynamics-placeholder" class="text-gray-400">(Динаміка продаж — в розробці)</div>
-        </div>
-      </div>
-      <div id="dashboard-tab-quality" class="dashboard-tab-section hidden">
-        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 mb-6">
-          <h2 class="text-lg font-bold mb-2">Якість бази</h2>
-          <!-- Здесь будут метрики по якості бази -->
-          <div id="quality-placeholder" class="text-gray-400">(Якість бази — в розробці)</div>
+        <div id="dashboard-tab-quality" class="dashboard-tab-section hidden">
+          <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-4 mb-6">
+            <h2 class="text-lg font-bold mb-2">Якість бази</h2>
+            <!-- Здесь будут метрики по якості бази -->
+            <div id="quality-placeholder" class="text-gray-400">(Якість бази — в розробці)</div>
+          </div>
         </div>
       </div>
     </div>
   `;
-  // Переключение вкладок
-  const tabBtns = container.querySelectorAll('.dashboard-tab-btn');
-  const tabSections = container.querySelectorAll('.dashboard-tab-section');
-  tabBtns.forEach(btn => {
-    btn.onclick = () => {
-      tabBtns.forEach(b => b.classList.remove('btn-primary'));
-      tabBtns.forEach(b => b.classList.add('btn-secondary'));
-      btn.classList.add('btn-primary');
-      btn.classList.remove('btn-secondary');
-      tabSections.forEach(sec => sec.classList.add('hidden'));
-      const tab = btn.getAttribute('data-tab');
-      const section = container.querySelector(`#dashboard-tab-${tab}`);
-      if (section) section.classList.remove('hidden');
-    };
-  });
-  // Инициализация фильтров и рендера
-  await loadDashboardData(); // Чекаємо завантаження даних
-  renderDashboardFilters();
-  rerenderDashboard();
+  // Функции управления загрузкой
+  function updateDashboardProgress(percent, message, step) {
+    const progressBar = container.querySelector('#dashboard-progress-bar');
+    const loadingMessage = container.querySelector('#dashboard-loading-message');
+    const loadingStep = container.querySelector('#dashboard-loading-step');
+    
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (loadingMessage) loadingMessage.textContent = message;
+    if (loadingStep) loadingStep.textContent = step;
+  }
+  
+  function showDashboardContent() {
+    const loadingContainer = container.querySelector('#dashboard-loading-container');
+    const mainContent = container.querySelector('#dashboard-main-content');
+    
+    if (loadingContainer) loadingContainer.classList.add('hidden');
+    if (mainContent) mainContent.classList.remove('hidden');
+  }
+  
+  function showDashboardError(errorMessage) {
+    const loadingContainer = container.querySelector('#dashboard-loading-container');
+    if (loadingContainer) {
+      loadingContainer.innerHTML = `
+        <div class="text-center p-8">
+          <div class="text-red-500 text-6xl mb-4">⚠️</div>
+          <p class="text-lg font-medium text-red-400 mb-2">Помилка завантаження</p>
+          <p class="text-sm text-gray-400">${errorMessage}</p>
+          <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+            Спробувати ще раз
+          </button>
+        </div>
+      `;
+    }
+  }
+  
+  try {
+    updateDashboardProgress(20, 'Завантаження даних...', 'Підключення до джерел даних');
+    
+    // Инициализация фильтров и рендера
+    await loadDashboardData(); // Чекаємо завантаження даних
+    
+    updateDashboardProgress(60, 'Обробка даних...', 'Аналіз показників та метрик');
+    
+    renderDashboardFilters();
+    
+    updateDashboardProgress(80, 'Підготовка інтерфейсу...', 'Створення графіків та таблиць');
+    
+    rerenderDashboard();
+    
+    updateDashboardProgress(100, 'Готово!', 'Дашборд успішно завантажено');
+    
+    // Переключение вкладок
+    const tabBtns = container.querySelectorAll('.dashboard-tab-btn');
+    const tabSections = container.querySelectorAll('.dashboard-tab-section');
+    tabBtns.forEach(btn => {
+      btn.onclick = () => {
+        tabBtns.forEach(b => b.classList.remove('btn-primary'));
+        tabBtns.forEach(b => b.classList.add('btn-secondary'));
+        btn.classList.add('btn-primary');
+        btn.classList.remove('btn-secondary');
+        tabSections.forEach(sec => sec.classList.add('hidden'));
+        const tab = btn.getAttribute('data-tab');
+        const section = container.querySelector(`#dashboard-tab-${tab}`);
+        if (section) section.classList.remove('hidden');
+      };
+    });
+    
+    // Задержка чтобы пользователь увидел 100%
+    setTimeout(() => {
+      showDashboardContent();
+    }, 500);
+    
+  } catch (error) {
+    console.error('❌ Помилка завантаження дашборду:', error);
+    showDashboardError(error.message || 'Невідома помилка');
+  }
 }
 
 // По умолчанию — текущий месяц

@@ -25,97 +25,190 @@ const statusTexts = {
     denied: 'Відхилено',
 };
 
-// === НОВЕ: Список всіх можливих дозволів ===
-export const ALL_POSSIBLE_PERMISSIONS = [
-    // Табель
-    { id: 'timesheet_view', label: 'Перегляд табеля (основна сторінка)' },
-    { id: 'timesheet_edit_cells', label: 'Редагування комірок табеля' },
-    { id: 'timesheet_archive_employees', label: 'Архівування/розархівування співробітників у табелі' },
-    { id: 'timesheet_fill_schedule', label: 'Заповнення табеля за графіком відділу' },
-    { id: 'timesheet_clear_month', label: 'Очищення даних табеля за місяць' },
-    { id: 'timesheet_change_norm', label: 'Зміна норми робочих днів (глобально/за графіком)' },
-    { id: 'timesheet_export', label: 'Експорт табеля в Excel' },
-
-    // Масовий розрахунок ЗП
-    { id: 'massSalary_view_page', label: 'Доступ до сторінки "Масовий розрахунок"' },
-    { id: 'massSalary_generate_table', label: 'Формування таблиці масового розрахунку' },
-    { id: 'massSalary_calculate_all', label: 'Запуск розрахунку "Розрахувати все"' },
-    { id: 'massSalary_save_snapshot', label: 'Збереження знімку масового розрахунку' },
-    { id: 'massSalary_export_excel', label: 'Експорт масового розрахунку в Excel' },
-
-    // KPI (Одиночний розрахунок ЗП)
-    { id: 'kpiIndividual_view_page', label: 'Доступ до сторінки "KPI (Одиночний)"' },
-    { id: 'kpiIndividual_load_actuals', label: 'Завантаження збережених KPI даних співробітника' },
-    { id: 'kpiIndividual_calculate', label: 'Розрахунок індивідуальної ЗП по KPI' },
-    { id: 'kpiIndividual_save_actuals', label: 'Збереження фактичних даних KPI співробітника' },
-
-    // Звіти
-    { id: 'reports_view_page', label: 'Доступ до сторінки "Звіти"' },
-    { id: 'reports_view_dynamics', label: 'Перегляд звіту "Динаміка по місяцях"' },
-
-    // Відпустки
-    { id: 'vacations_view_page', label: 'Доступ до сторінки "Відпустки"' },
-    { id: 'vacations_create_own', label: 'Створення власних заявок на відпустку' },
-    { id: 'vacations_create_for_department', label: 'Створення заявок для співробітників свого відділу' },
-    { id: 'vacations_view_all', label: 'Перегляд всіх заявок в компанії' },
-    { id: 'vacations_view_department', label: 'Перегляд заявок свого відділу' },
-    { id: 'vacations_manage_requests', label: 'Керування запитами на відпустку (погодження/відхилення)' },
-
-    // Компетенції
-    { id: 'competencies_view_page', label: 'Доступ до сторінки "Компетенції"' },
-    { id: 'competencies_assess_employees', label: 'Проведення оцінки компетенцій співробітників' },
-    { id: 'competencies_view_reports', label: 'Перегляд звітів по компетенціям' },
-    { id: 'competencies_manage_models', label: 'Керування моделями компетенцій (створення, редагування, видалення)' },
-    { id: 'competencies_view_own_assessment', label: 'Перегляд власної оцінки компетенцій' },
-
-    // Налаштування - Персонал
-    { id: 'settings_employees_manage', label: 'Керування співробітниками (перегляд, додавання, редагування, видалення)' },
-    { id: 'settings_departments_manage', label: 'Керування відділами' },
-    { id: 'settings_schedules_manage', label: 'Керування графіками роботи' },
-    { id: 'settings_positions_manage', label: 'Керування посадами' },
-
-    // Налаштування - Адміністрування
-    { id: 'settings_users_access_manage', label: 'Керування доступом користувачів до компанії' },
-    { id: 'settings_roles_manage', label: 'Керування ролями доступу (створення, редагування, видалення ролей)' },
-    { id: 'settings_kpi_constructor_manage', label: 'Керування конструктором KPI (шаблони ЗП)' },
-    
-    // Загальні налаштування компанії (майбутнє)
-    // { id: 'settings_company_edit', label: 'Редагування основних даних компанії' }
-    { id: 'orgchart_view_page', label: 'Доступ до сторінки "Оргструктура"' }, // Новое право для оргструктуры
-    // --- Додавання продажів ---
-    { id: 'sales_manage', label: 'Додавання та редагування продажів (Звіти)' },
-    { id: 'sales_assistant_page', label: 'Доступ до сторінки "Помічник продажу"' }, // Додано сторінку помічника продажу
-    { id: 'focus_view', label: 'Перегляд модуля Фокус' },
-    { id: 'focus_create', label: 'Створення фокусних задач' },
-    { id: 'focus_edit', label: 'Редагування фокусних задач' },
-    { id: 'focus_manage', label: 'Повне керування фокусними задачами' },
-    // --- Доступ до модуля "Створи мій день" ---
-    { id: 'smartday_access', label: 'Доступ до модуля "Створи мій день"' },
-    
-    // --- Дебіторська заборгованість ---
-    { id: 'debts_view_page', label: 'Доступ до модуля "Дебіторка"' },
-    { id: 'debts_view_all_clients', label: 'Перегляд всіх заборгованостей компанії' },
-    { id: 'debts_view_manager_clients', label: 'Перегляд заборгованостей власних клієнтів' },
-    { id: 'debts_view_department_clients', label: 'Перегляд заборгованостей свого відділу' },
-    { id: 'debts_add_comments', label: 'Додавання коментарів по заборгованостях' },
-    { id: 'debts_edit_comments', label: 'Редагування коментарів по заборгованостях' },
-    { id: 'debts_delete_comments', label: 'Видалення коментарів по заборгованостях' },
-    { id: 'debts_add_forecasts', label: 'Створення прогнозів оплат' },
-    { id: 'debts_edit_forecasts', label: 'Редагування прогнозів оплат' },
-    { id: 'debts_delete_forecasts', label: 'Видалення прогнозів оплат' },
-    { id: 'debts_export_data', label: 'Експорт звіту дебіторки в Excel/CSV' },
-    
-    // --- План-Факт ---
-    { id: 'planfact_view_page', label: 'Доступ до модуля "План-Факт"' },
-    { id: 'planfact_create_plans', label: 'Створення планів' },
-    { id: 'planfact_edit_own_plans', label: 'Редагування власних планів' },
-    { id: 'planfact_edit_all_plans', label: 'Редагування всіх планів компанії' },
-    { id: 'planfact_delete_own_plans', label: 'Видалення власних планів' },
-    { id: 'planfact_delete_all_plans', label: 'Видалення всіх планів компанії' },
-    { id: 'planfact_view_dashboard', label: 'Перегляд дашборду та аналітики' },
-    { id: 'planfact_create_targets', label: 'Створення цілей та KPI в планах' },
-    { id: 'planfact_edit_targets', label: 'Редагування цілей та KPI в планах' },
+// === НОВЕ: Групована структура всіх можливих дозволів ===
+export const PERMISSIONS_GROUPS = [
+    {
+        id: 'timesheet',
+        name: '📊 Табель',
+        permissions: [
+            { id: 'timesheet_view', label: 'Перегляд табеля (основна сторінка)' },
+            { id: 'timesheet_edit_cells', label: 'Редагування комірок табеля' },
+            { id: 'timesheet_archive_employees', label: 'Архівування/розархівування співробітників у табелі' },
+            { id: 'timesheet_fill_schedule', label: 'Заповнення табеля за графіком відділу' },
+            { id: 'timesheet_clear_month', label: 'Очищення даних табеля за місяць' },
+            { id: 'timesheet_change_norm', label: 'Зміна норми робочих днів (глобально/за графіком)' },
+            { id: 'timesheet_export', label: 'Експорт табеля в Excel' }
+        ]
+    },
+    {
+        id: 'salary',
+        name: '💰 Зарплата',
+        permissions: [
+            { id: 'massSalary_view_page', label: 'Доступ до сторінки "Масовий розрахунок"' },
+            { id: 'massSalary_generate_table', label: 'Формування таблиці масового розрахунку' },
+            { id: 'massSalary_calculate_all', label: 'Запуск розрахунку "Розрахувати все"' },
+            { id: 'massSalary_save_snapshot', label: 'Збереження знімку масового розрахунку' },
+            { id: 'massSalary_export_excel', label: 'Експорт масового розрахунку в Excel' },
+            { id: 'kpiIndividual_view_page', label: 'Доступ до сторінки "KPI (Одиночний)"' },
+            { id: 'kpiIndividual_load_actuals', label: 'Завантаження збережених KPI даних співробітника' },
+            { id: 'kpiIndividual_calculate', label: 'Розрахунок індивідуальної ЗП по KPI' },
+            { id: 'kpiIndividual_save_actuals', label: 'Збереження фактичних даних KPI співробітника' }
+        ]
+    },
+    {
+        id: 'reports',
+        name: '📈 Звіти',
+        permissions: [
+            { id: 'reports_view_page', label: 'Доступ до сторінки "Звіти"' },
+            { id: 'reports_view_dynamics', label: 'Перегляд звіту "Динаміка по місяцях"' }
+        ]
+    },
+    {
+        id: 'vacations',
+        name: '🏖️ Відпустки',
+        permissions: [
+            { id: 'vacations_view_page', label: 'Доступ до сторінки "Відпустки"' },
+            { id: 'vacations_create_own', label: 'Створення власних заявок на відпустку' },
+            { id: 'vacations_create_for_department', label: 'Створення заявок для співробітників свого відділу' },
+            { id: 'vacations_view_all', label: 'Перегляд всіх заявок в компанії' },
+            { id: 'vacations_view_department', label: 'Перегляд заявок свого відділу' },
+            { id: 'vacations_manage_requests', label: 'Керування запитами на відпустку (погодження/відхилення)' }
+        ]
+    },
+    {
+        id: 'competencies',
+        name: '🎯 Компетенції',
+        permissions: [
+            { id: 'competencies_view_page', label: 'Доступ до сторінки "Компетенції"' },
+            { id: 'competencies_assess_employees', label: 'Проведення оцінки компетенцій співробітників' },
+            { id: 'competencies_view_reports', label: 'Перегляд звітів по компетенціям' },
+            { id: 'competencies_manage_models', label: 'Керування моделями компетенцій (створення, редагування, видалення)' },
+            { id: 'competencies_view_own_assessment', label: 'Перегляд власної оцінки компетенцій' }
+        ]
+    },
+    {
+        id: 'sales',
+        name: '📊 Продажі',
+        permissions: [
+            { id: 'sales_manage', label: 'Додавання та редагування продажів (Звіти)' },
+            { id: 'sales_assistant_page', label: 'Доступ до сторінки "Помічник продажу"' },
+            { id: 'department_dashboard_view', label: 'Доступ до "Дашборд по відділах"' },
+            { id: 'focus_view', label: 'Перегляд модуля Фокус' },
+            { id: 'focus_create', label: 'Створення фокусних задач' },
+            { id: 'focus_edit', label: 'Редагування фокусних задач' },
+            { id: 'focus_manage', label: 'Повне керування фокусними задачами' },
+            { id: 'focus_view_all_clients', label: 'Перегляд всіх клієнтів у Фокус 2.0' },
+            { id: 'focus_view_department_clients', label: 'Перегляд клієнтів свого відділу у Фокус 2.0' },
+            { id: 'focus_view_manager_clients', label: 'Перегляд власних клієнтів у Фокус 2.0' },
+            { id: 'smartday_access', label: 'Доступ до модуля "Створи мій день"' }
+        ]
+    },
+    {
+        id: 'forecasting',
+        name: '🔮 Прогнозирование',
+        permissions: [
+            { id: 'forecasting_view_page', label: 'Доступ до модуля "Прогнозирование продаж"' },
+            { id: 'forecasting_create_plans', label: 'Создание планов продаж' },
+            { id: 'forecasting_edit_plans', label: 'Редактирование планов продаж' },
+            { id: 'forecasting_delete_plans', label: 'Удаление планов продаж' },
+            { id: 'forecasting_generate_forecasts', label: 'Генерация прогнозов' },
+            { id: 'forecasting_view_analytics', label: 'Просмотр аналитики прогнозирования' },
+            { id: 'forecasting_manage_settings', label: 'Управление настройками прогнозирования' },
+            { id: 'forecasting_export_reports', label: 'Экспорт отчетов прогнозирования' }
+        ]
+    },
+    {
+        id: 'debts',
+        name: '💳 Дебіторка',
+        permissions: [
+            { id: 'debts_view_page', label: 'Доступ до модуля "Дебіторка"' },
+            { id: 'debts_view_all_clients', label: 'Перегляд всіх заборгованостей компанії' },
+            { id: 'debts_view_manager_clients', label: 'Перегляд заборгованостей власних клієнтів' },
+            { id: 'debts_view_department_clients', label: 'Перегляд заборгованостей свого відділу' },
+            { id: 'debts_add_comments', label: 'Додавання коментарів по заборгованостях' },
+            { id: 'debts_edit_comments', label: 'Редагування коментарів по заборгованостях' },
+            { id: 'debts_delete_comments', label: 'Видалення коментарів по заборгованостях' },
+            { id: 'debts_add_forecasts', label: 'Створення прогнозів оплат' },
+            { id: 'debts_edit_forecasts', label: 'Редагування прогнозів оплат' },
+            { id: 'debts_delete_forecasts', label: 'Видалення прогнозів оплат' },
+            { id: 'debts_export_data', label: 'Експорт звіту дебіторки в Excel/CSV' }
+        ]
+    },
+    {
+        id: 'alerts',
+        name: '🚨 Сигналізація',
+        permissions: [
+            { id: 'alerts_view_page', label: 'Доступ до модуля "Сигналізація"' },
+            { id: 'alerts_view_all_clients', label: 'Перегляд всіх алертів компанії' },
+            { id: 'alerts_view_manager_clients', label: 'Перегляд алертів власних клієнтів' },
+            { id: 'alerts_view_department_clients', label: 'Перегляд алертів свого відділу' },
+            { id: 'alerts_add_actions', label: 'Додавання дій по алертах (дзвінки, зустрічі, листи)' },
+            { id: 'alerts_edit_actions', label: 'Редагування власних дій по алертах' },
+            { id: 'alerts_view_actions', label: 'Перегляд історії дій по алертах' },
+            { id: 'alerts_change_status', label: 'Зміна статусу алертів (новий/в роботі/вирішено)' },
+            { id: 'alerts_add_potential_orders', label: 'Додавання потенційних замовлень' },
+            { id: 'alerts_view_overdue_agreements', label: 'Перегляд прострочених домовленостей' },
+            { id: 'alerts_export_data', label: 'Експорт звіту алертів в Excel/CSV' },
+            { id: 'ai_notifications_view', label: 'Перегляд AI уведомлений' },
+            { id: 'ai_notifications_create', label: 'Створення AI уведомлений' }
+        ]
+    },
+    {
+        id: 'planfact',
+        name: '📋 План-Факт',
+        permissions: [
+            { id: 'planfact_view_page', label: 'Доступ до модуля "План-Факт"' },
+            { id: 'planfact_view_dashboard', label: 'Перегляд дашборду виконання планів' },
+            { id: 'planfact_view_analytics', label: 'Перегляд аналітики План-Факт' },
+            { id: 'planfact_create_plans', label: 'Створення планів' },
+            { id: 'planfact_edit_own_plans', label: 'Редагування власних планів' },
+            { id: 'planfact_edit_all_plans', label: 'Редагування всіх планів компанії' },
+            { id: 'planfact_delete_own_plans', label: 'Видалення власних планів' },
+            { id: 'planfact_delete_all_plans', label: 'Видалення всіх планів компанії' },
+            { id: 'planfact_create_targets', label: 'Створення цілей та завдань' },
+            { id: 'planfact_edit_targets', label: 'Редагування цілей та завдань' },
+            { id: 'planfact_create_templates', label: 'Створення шаблонів планів' },
+            { id: 'planfact_edit_templates', label: 'Редагування шаблонів планів' },
+            { id: 'planfact_delete_templates', label: 'Видалення шаблонів планів' },
+            { id: 'planfact_activate_templates', label: 'Активація шаблонів планів' },
+            { id: 'planfact_manage_focus_types', label: 'Керування типами фокусних задач' },
+            { id: 'planfact_mass_assignment', label: 'Масове призначення планів' }
+        ]
+    },
+    {
+        id: 'manager_calendar',
+        name: '📅 Календар менеджера',
+        permissions: [
+            { id: 'manager_calendar_view_page', label: 'Доступ до модуля "Календар менеджера"' },
+            { id: 'manager_calendar_view_all_tasks', label: 'Перегляд всіх завдань компанії' },
+            { id: 'manager_calendar_view_own_tasks', label: 'Перегляд власних завдань' },
+            { id: 'manager_calendar_view_department_tasks', label: 'Перегляд завдань свого відділу' },
+            { id: 'manager_calendar_manage_tasks', label: 'Керування завданнями (створення, редагування)' },
+            { id: 'manager_calendar_view_reports', label: 'Перегляд звітів по завданнях' },
+            { id: 'manager_calendar_manage_reports', label: 'Керування звітами по завданнях' },
+            { id: 'manager_calendar_view_workload_norms', label: 'Перегляд норм навантаження' },
+            { id: 'manager_calendar_manage_workload_norms', label: 'Керування нормами навантаження (додавання, редагування)' },
+            { id: 'manager_calendar_export_data', label: 'Експорт даних календаря' }
+        ]
+    },
+    {
+        id: 'settings',
+        name: '⚙️ Налаштування',
+        permissions: [
+            { id: 'settings_employees_manage', label: 'Керування співробітниками (перегляд, додавання, редагування, видалення)' },
+            { id: 'settings_departments_manage', label: 'Керування відділами' },
+            { id: 'settings_schedules_manage', label: 'Керування графіками роботи' },
+            { id: 'settings_positions_manage', label: 'Керування посадами' },
+            { id: 'settings_users_access_manage', label: 'Керування доступом користувачів до компанії' },
+            { id: 'settings_roles_manage', label: 'Керування ролями доступу (створення, редагування, видалення ролей)' },
+            { id: 'settings_kpi_constructor_manage', label: 'Керування конструктором KPI (шаблони ЗП)' },
+            { id: 'orgchart_view_page', label: 'Доступ до сторінки "Оргструктура"' }
+        ]
+    }
 ];
+
+// === Зворотна сумісність: плоский список всіх дозволів ===
+export const ALL_POSSIBLE_PERMISSIONS = PERMISSIONS_GROUPS.flatMap(group => group.permissions);
 
 
 // === ОСНОВНІ ФУНКЦІЇ ІНІЦІАЛІЗАЦІЇ ТА КЕРУВАННЯ UI ===
@@ -125,11 +218,14 @@ export const ALL_POSSIBLE_PERMISSIONS = [
  * Ця функція повинна бути викликана в main.js після події DOMContentLoaded.
  */
 export function initializeDOMElements() {
+    console.log('🔧 Инициализация DOM элементов...');
+    
     Object.assign(elements, {
         // Основні контейнери сторінок
         pages: {
             landingPage: document.getElementById('landingPage'),
             setupPage: document.getElementById('setupPage'),
+            dashboardPage: document.getElementById('dashboardPage'), // Додано сторінку dashboard
             appPage: document.getElementById('appPage'),
             salaryPage: document.getElementById('salaryPage'),
             massSalaryPage: document.getElementById('massSalaryPage'),
@@ -138,6 +234,7 @@ export function initializeDOMElements() {
             competenciesPage: document.getElementById('competenciesPage'), // Додано сторінку компетенцій
             orgchartPage: document.getElementById('orgchartPage'), // Додано сторінку оргструктуры
             salesAssistantPage: document.getElementById('salesAssistantPage'), // Додано сторінку помічника продажу
+            forecastingPage: document.getElementById('forecastingPage'), // Додано сторінку прогнозирования
         },
         appContainer: document.getElementById('appContainer'),
         navButtons: document.querySelectorAll('.nav-btn'),
@@ -392,12 +489,21 @@ export function initializeDOMElements() {
         approveAnywayConflictBtn: document.getElementById('approveAnywayConflictBtn'),
         cancelConflictBtn: document.getElementById('cancelConflictBtn'),
     });
+    
+    // Проверяем, что dashboardPage найден
+    console.log('🔧 Проверка dashboardPage:', {
+        exists: !!elements.pages.dashboardPage,
+        element: elements.pages.dashboardPage
+    });
 }
 
 /** Показує певну сторінку програми та приховує інші з анімацією. */
 export function showPage(pageId, permissions = {}) {
-    const isAppPage = ['appPage', 'salaryPage', 'massSalaryPage', 'reportsPage', 'vacationsPage', 'competenciesPage', 'orgchartPage', 'salesAssistantPage'].includes(pageId); // Добавлено salesAssistantPage
+    console.log(`🔄 ui.showPage вызвана с pageId: ${pageId}`);
+    
+    const isAppPage = ['appPage', 'salaryPage', 'massSalaryPage', 'reportsPage', 'vacationsPage', 'competenciesPage', 'orgchartPage', 'salesAssistantPage', 'forecastingPage'].includes(pageId); // Добавлено salesAssistantPage и forecastingPage
 
+    console.log(`📄 isAppPage для ${pageId}: ${isAppPage}`);
     elements.appContainer.classList.toggle('hidden', !isAppPage);
     
     // Приховуємо всі сторінки спочатку
@@ -408,13 +514,35 @@ export function showPage(pageId, permissions = {}) {
         }
     });
 
-    // Обработка страниц landing та setup окремо, оскільки вони не є частиною appContainer
+    // Обработка страниц landing, setup и dashboard окремо, оскільки вони не є частиною appContainer
     if (pageId === 'landingPage') {
         elements.pages.landingPage.classList.remove('hidden');
         elements.pages.landingPage.classList.add('active');
     } else if (pageId === 'setupPage') {
         elements.pages.setupPage.classList.remove('hidden');
         elements.pages.setupPage.classList.add('active');
+    } else if (pageId === 'dashboardPage') {
+        console.log('🏠 Обработка dashboardPage в ui.showPage');
+        
+        if (!elements.pages.dashboardPage) {
+            console.error('❌ elements.pages.dashboardPage не найден!');
+            return;
+        }
+        
+        console.log('📄 Состояние dashboardPage до:', {
+            exists: !!elements.pages.dashboardPage,
+            classes: elements.pages.dashboardPage?.className,
+            isHidden: elements.pages.dashboardPage?.classList?.contains('hidden'),
+            isActive: elements.pages.dashboardPage?.classList?.contains('active')
+        });
+        
+        elements.pages.dashboardPage.classList.remove('hidden');
+        elements.pages.dashboardPage.classList.add('active');
+        
+        console.log('📄 Состояние dashboardPage после:', {
+            isHidden: elements.pages.dashboardPage?.classList?.contains('hidden'),
+            isActive: elements.pages.dashboardPage?.classList?.contains('active')
+        });
     }
     
     // --- NEW LOGIC START ---
@@ -433,7 +561,8 @@ export function showPage(pageId, permissions = {}) {
             competenciesPage: 'competencies_view_page',
             orgchartPage: 'orgchart_view_page',
             salesAssistantPage: 'sales_manage',
-            focusPage: 'focus_view' // Додано focusPage
+            focusPage: 'focus_view', // Додано focusPage
+            forecastingPage: 'forecasting_view_page' // Додано forecastingPage
         };
         const permissionKey = permissionMap[targetPageId];
         const hasAccess = permissionKey ? permissions[permissionKey] === true : true;
@@ -465,7 +594,8 @@ export function showPage(pageId, permissions = {}) {
             competenciesPage: 'competencies_view_page',
             orgchartPage: 'orgchart_view_page',
             salesAssistantPage: 'sales_manage',
-            focusPage: 'focus_view' // Додано focusPage
+            focusPage: 'focus_view', // Додано focusPage
+            forecastingPage: 'forecasting_view_page' // Додано forecastingPage
         };
         const permissionKey = permissionMap[target];
         hasNavPermission = permissionKey ? permissions[permissionKey] === true : true;
@@ -495,6 +625,7 @@ export function showPage(pageId, permissions = {}) {
         reportsPage: 'initDashboardPage',
         competenciesPage: 'initCompetenciesModule',
         salesAssistantPage: 'initSalesAssistantPage', // <--- Додаємо "Помічник продажу"
+        forecastingPage: 'initForecastingModule', // <--- Додаємо "Прогнозирование"
     };
 
     if (finalPageToShow && moduleInitializers[finalPageToShow]) {
@@ -579,6 +710,10 @@ export function closeModal(modalId) {
 
 /** Відкриває анімоване вікно налаштувань. */
 export function openSettingsWindow(permissions = {}) {
+    if (!elements || !elements.settingsWindow) {
+        console.warn('Settings window elements not initialized');
+        return;
+    }
     const { modal, content } = elements.settingsWindow;
     if (!modal || !content) return;
     setElementEnabled(elements.settingsWindow.btnManageEmployees, permissions.settings_employees_manage);
@@ -627,6 +762,10 @@ export function openSettingsWindow(permissions = {}) {
 
 /** Закриває анімоване вікно налаштувань. */
 export function closeSettingsWindow() {
+    if (!elements || !elements.settingsWindow) {
+        console.warn('Settings window elements not initialized');
+        return;
+    }
     const { modal, content } = elements.settingsWindow;
     if (!modal || !content || modal.classList.contains('hidden')) return;
     content.classList.remove('visible');
@@ -751,12 +890,38 @@ export function renderNotifications(requests, onNotificationClick) {
     requests.forEach(req => {
         const notificationItem = document.createElement('div');
         notificationItem.className = 'p-3 border-b border-gray-600 last:border-b-0 hover:bg-gray-600 cursor-pointer';
-        notificationItem.innerHTML = `
-            <p class="text-sm font-medium text-white">Заявка на відпустку від ${req.employeeName}</p>
-            <p class="text-xs text-gray-400">${req.startDate.toLocaleDateString()} - ${req.endDate.toLocaleDateString()}</p>
-            <p class="text-xs text-gray-500 mt-1">Статус: <span class="capitalize text-yellow-300">${req.status}</span></p>
-        `;
-        notificationItem.addEventListener('click', () => onNotificationClick(req.id));
+        
+        if (req.type === 'ai_recommendation') {
+            // AI рекомендация
+            const priorityColor = req.priority === 'critical' ? 'text-red-400' : 
+                                req.priority === 'high' ? 'text-orange-400' : 
+                                req.priority === 'medium' ? 'text-yellow-400' : 'text-blue-400';
+            
+            notificationItem.innerHTML = `
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-white">🤖 ${req.title}</p>
+                        <p class="text-xs text-gray-400">${req.description}</p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Клієнт: <span class="text-blue-300">${req.clientName}</span> | 
+                            Пріоритет: <span class="${priorityColor}">${req.priority}</span>
+                        </p>
+                    </div>
+                    <div class="ml-2">
+                        <span class="inline-block w-2 h-2 bg-blue-500 rounded-full"></span>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Обычное уведомление о отпуске
+            notificationItem.innerHTML = `
+                <p class="text-sm font-medium text-white">Заявка на відпустку від ${req.employeeName}</p>
+                <p class="text-xs text-gray-400">${req.startDate.toLocaleDateString()} - ${req.endDate.toLocaleDateString()}</p>
+                <p class="text-xs text-gray-500 mt-1">Статус: <span class="capitalize text-yellow-300">${req.status}</span></p>
+            `;
+        }
+        
+        notificationItem.addEventListener('click', () => onNotificationClick(req.id, req.type));
         elements.notificationsListContainer.appendChild(notificationItem);
     });
 }
@@ -2036,24 +2201,46 @@ export function renderRoleEditor(role, permissions = {}) {
     elements.roleNameInput.disabled = !permissions.settings_roles_manage;
 
     elements.permissionsList.innerHTML = '';
-    ALL_POSSIBLE_PERMISSIONS.forEach(permDef => {
-        const permDiv = document.createElement('div');
-        permDiv.className = 'flex items-center justify-between py-1';
-        const label = document.createElement('label');
-        label.htmlFor = `perm_${permDef.id}`;
-        label.textContent = permDef.label;
-        label.className = 'text-sm text-gray-300';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.id = `perm_${permDef.id}`;
-        checkbox.className = 'h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500';
-        checkbox.checked = role.permissions?.[permDef.id] === true;
-        checkbox.disabled = !permissions.settings_roles_manage;
+    
+    // Рендерим группированные разрешения
+    PERMISSIONS_GROUPS.forEach(group => {
+        // Заголовок группы
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'border-b border-gray-600 pb-2 mb-3';
+        const groupTitle = document.createElement('h3');
+        groupTitle.className = 'text-lg font-semibold text-white mb-2';
+        groupTitle.textContent = group.name;
+        groupHeader.appendChild(groupTitle);
+        elements.permissionsList.appendChild(groupHeader);
         
-        permDiv.appendChild(label);
-        permDiv.appendChild(checkbox);
-        elements.permissionsList.appendChild(permDiv);
+        // Разрешения группы
+        group.permissions.forEach(permDef => {
+            const permDiv = document.createElement('div');
+            permDiv.className = 'flex items-center justify-between py-2 px-2 hover:bg-gray-700 rounded';
+            const label = document.createElement('label');
+            label.htmlFor = `perm_${permDef.id}`;
+            label.textContent = permDef.label;
+            label.className = 'text-sm text-gray-300 flex-1 cursor-pointer';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `perm_${permDef.id}`;
+            checkbox.className = 'h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500 ml-3';
+            checkbox.checked = role.permissions?.[permDef.id] === true;
+            checkbox.disabled = !permissions.settings_roles_manage;
+            
+            permDiv.appendChild(label);
+            permDiv.appendChild(checkbox);
+            elements.permissionsList.appendChild(permDiv);
+        });
+        
+        // Разделитель между группами
+        if (group.id !== PERMISSIONS_GROUPS[PERMISSIONS_GROUPS.length - 1].id) {
+            const separator = document.createElement('div');
+            separator.className = 'h-px bg-gray-600 my-4';
+            elements.permissionsList.appendChild(separator);
+        }
     });
+    
     setElementEnabled(elements.saveRoleBtn, permissions.settings_roles_manage);
     setElementEnabled(elements.deleteRoleBtn, permissions.settings_roles_manage && role.name !== 'Owner' && role.name !== 'Admin'); // Заборона видалення базових ролей
 }
@@ -2139,39 +2326,51 @@ export function renderSelectedUserPermissions(selectedUser, allPossiblePermissio
     // Показуємо інформацію про користувача
     infoContainer.classList.remove('hidden');
     
-    // Формуємо список активних прав
+    // Формуємо список активних прав с группировкой
     let permissionsHtml = `<div class="mb-2"><strong>Роль:</strong> ${userRole}</div>`;
     permissionsHtml += '<div><strong>Активні права:</strong></div>';
     
-    const activePermissions = [];
-    const inactivePermissions = [];
-    
-    allPossiblePermissions.forEach(perm => {
-        if (userPermissions[perm.id]) {
-            activePermissions.push(perm.label);
-        } else {
-            inactivePermissions.push(perm.label);
+    // Группируем разрешения по группам
+    PERMISSIONS_GROUPS.forEach(group => {
+        const groupActivePermissions = [];
+        const groupInactivePermissions = [];
+        
+        group.permissions.forEach(perm => {
+            if (userPermissions[perm.id]) {
+                groupActivePermissions.push(perm.label);
+            } else {
+                groupInactivePermissions.push(perm.label);
+            }
+        });
+        
+        if (groupActivePermissions.length > 0) {
+            permissionsHtml += `<div class="mt-3"><strong class="text-blue-300">${group.name}</strong></div>`;
+            permissionsHtml += '<div class="text-green-400 mt-1 ml-4">';
+            groupActivePermissions.forEach(perm => {
+                permissionsHtml += `• ${perm}<br>`;
+            });
+            permissionsHtml += '</div>';
         }
     });
     
-    if (activePermissions.length > 0) {
-        permissionsHtml += '<div class="text-green-400 mt-1">';
-        activePermissions.forEach(perm => {
-            permissionsHtml += `• ${perm}<br>`;
+    // Показываем неактивные права только если их много
+    const allInactivePermissions = [];
+    PERMISSIONS_GROUPS.forEach(group => {
+        group.permissions.forEach(perm => {
+            if (!userPermissions[perm.id]) {
+                allInactivePermissions.push(perm.label);
+            }
         });
-        permissionsHtml += '</div>';
-    } else {
-        permissionsHtml += '<div class="text-gray-500 mt-1">Немає активних прав</div>';
-    }
+    });
     
-    if (inactivePermissions.length > 0) {
-        permissionsHtml += '<div class="text-gray-600 mt-2"><strong>Неактивні права:</strong></div>';
+    if (allInactivePermissions.length > 0) {
+        permissionsHtml += '<div class="text-gray-600 mt-4"><strong>Неактивні права:</strong></div>';
         permissionsHtml += '<div class="text-gray-500">';
-        inactivePermissions.slice(0, 5).forEach(perm => { // Показуємо тільки перші 5
+        allInactivePermissions.slice(0, 5).forEach(perm => { // Показуємо тільки перші 5
             permissionsHtml += `• ${perm}<br>`;
         });
-        if (inactivePermissions.length > 5) {
-            permissionsHtml += `... та ще ${inactivePermissions.length - 5} прав`;
+        if (allInactivePermissions.length > 5) {
+            permissionsHtml += `... та ще ${allInactivePermissions.length - 5} прав`;
         }
         permissionsHtml += '</div>';
     }
@@ -2246,39 +2445,51 @@ export function renderSelectedRolePermissions(selectedRole, allPossiblePermissio
     // Показуємо інформацію про роль
     infoContainer.classList.remove('hidden');
     
-    // Формуємо список активних прав
+    // Формуємо список активних прав с группировкой
     let permissionsHtml = `<div class=\"mb-2\"><strong>Роль:</strong> ${selectedRole.name}</div>`;
     permissionsHtml += '<div><strong>Активні права:</strong></div>';
     
-    const activePermissions = [];
-    const inactivePermissions = [];
-    
-    allPossiblePermissions.forEach(perm => {
-        if (rolePermissions[perm.id]) {
-            activePermissions.push(perm.label);
-        } else {
-            inactivePermissions.push(perm.label);
+    // Группируем разрешения по группам
+    PERMISSIONS_GROUPS.forEach(group => {
+        const groupActivePermissions = [];
+        const groupInactivePermissions = [];
+        
+        group.permissions.forEach(perm => {
+            if (rolePermissions[perm.id]) {
+                groupActivePermissions.push(perm.label);
+            } else {
+                groupInactivePermissions.push(perm.label);
+            }
+        });
+        
+        if (groupActivePermissions.length > 0) {
+            permissionsHtml += `<div class=\"mt-3\"><strong class=\"text-blue-300\">${group.name}</strong></div>`;
+            permissionsHtml += '<div class=\"text-green-400 mt-1 ml-4\">';
+            groupActivePermissions.forEach(perm => {
+                permissionsHtml += `• ${perm}<br>`;
+            });
+            permissionsHtml += '</div>';
         }
     });
     
-    if (activePermissions.length > 0) {
-        permissionsHtml += '<div class=\"text-green-400 mt-1\">';
-        activePermissions.forEach(perm => {
-            permissionsHtml += `• ${perm}<br>`;
+    // Показываем неактивные права только если их много
+    const allInactivePermissions = [];
+    PERMISSIONS_GROUPS.forEach(group => {
+        group.permissions.forEach(perm => {
+            if (!rolePermissions[perm.id]) {
+                allInactivePermissions.push(perm.label);
+            }
         });
-        permissionsHtml += '</div>';
-    } else {
-        permissionsHtml += '<div class=\"text-gray-500 mt-1\">Немає активних прав</div>';
-    }
+    });
     
-    if (inactivePermissions.length > 0) {
-        permissionsHtml += '<div class=\"text-gray-600 mt-2\"><strong>Неактивні права:</strong></div>';
+    if (allInactivePermissions.length > 0) {
+        permissionsHtml += '<div class=\"text-gray-600 mt-4\"><strong>Неактивні права:</strong></div>';
         permissionsHtml += '<div class=\"text-gray-500\">';
-        inactivePermissions.slice(0, 5).forEach(perm => { // Показуємо тільки перші 5
+        allInactivePermissions.slice(0, 5).forEach(perm => { // Показуємо тільки перші 5
             permissionsHtml += `• ${perm}<br>`;
         });
-        if (inactivePermissions.length > 5) {
-            permissionsHtml += `... та ще ${inactivePermissions.length - 5} прав`;
+        if (allInactivePermissions.length > 5) {
+            permissionsHtml += `... та ще ${allInactivePermissions.length - 5} прав`;
         }
         permissionsHtml += '</div>';
     }

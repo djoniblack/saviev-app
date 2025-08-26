@@ -105,7 +105,17 @@ function showCreateTaskModal(container, onCreated) {
     }
     document.getElementById('close-create-task').onclick = close;
     document.getElementById('cancelCreateTask').onclick = close;
-    function close() { modal.remove(); }
+    function close() { 
+        try {
+            if (modal && modal.parentNode) {
+                modal.remove();
+            } else {
+                console.warn('Modal not found or already removed');
+            }
+        } catch (error) {
+            console.error('Error closing modal:', error);
+        }
+    }
     // Логика отображения опций для параметров
     const param2 = document.getElementById('param2');
     const param2options = document.getElementById('param2-options');
@@ -128,9 +138,17 @@ function showCreateTaskModal(container, onCreated) {
     updatePeriodFields();
     document.getElementById('focusTaskForm').onsubmit = async (e) => {
         e.preventDefault();
+        
+        // Проверяем права на создание задач
+        if (!window.hasPermission || !window.hasPermission('focus_create')) {
+            alert('У вас немає прав для створення фокусних задач!');
+            return;
+        }
+        
         const title = document.getElementById('focusTaskTitle').value.trim();
         const description = document.getElementById('focusTaskDesc').value.trim();
         const products = document.getElementById('focusTaskProducts').value.split('\n').map(s=>s.trim()).filter(Boolean);
+        const period = document.getElementById('focusTaskPeriod').value;
         const params = {
             param1: document.getElementById('param1').checked,
             param2: param2.checked,
@@ -143,7 +161,6 @@ function showCreateTaskModal(container, onCreated) {
             prevAnalysisTo: period === 'custom' ? document.getElementById('focusTaskPrevAnalysisTo').value : ''
         };
         const xProducts = param3.checked ? document.getElementById('focusTaskXProducts').value.split('\n').map(s=>s.trim()).filter(Boolean) : [];
-        const period = document.getElementById('focusTaskPeriod').value;
         const periodFrom = document.getElementById('focusTaskPeriodFrom').value;
         const periodTo = document.getElementById('focusTaskPeriodTo').value;
         if (period === 'custom' && (!periodFrom || !periodTo || !params.analysisFrom || !params.analysisTo || !params.prevAnalysisFrom || !params.prevAnalysisTo)) {
@@ -198,14 +215,94 @@ function showCreateTaskModal(container, onCreated) {
             });
             console.log('[createFocusTask] Успешно создана задача:', docRef.id);
             // После создания задачи сразу обновляем страницу/список задач
-            close();
-            if (onCreated) onCreated(); // initFocusPage(container) вызывается в onCreated
+            try {
+                close();
+                if (onCreated) onCreated(); // initFocusPage(container) вызывается в onCreated
+            } catch (error) {
+                console.error('Error after task creation:', error);
+                // Показываем сообщение об успехе даже если есть ошибка закрытия
+                alert('Задачу успішно створено!');
+                if (onCreated) onCreated();
+            }
         } catch (e) {
             console.error('[createFocusTask] Ошибка при создании задачи:', e);
             alert('Помилка збереження: ' + (e.message || e));
         }
     };
 }
+
+// --- Функция для обновления старых задач ---
+window.updateOldFocusTask = async function(taskId) {
+  try {
+    console.log('🔄 Обновление старой задачи:', taskId);
+    
+    // Получаем задачу
+    const companyId = window.state.currentCompanyId;
+    const taskRef = firebase.doc(firebase.db, 'companies', companyId, 'focusTasks', taskId);
+    const taskDoc = await firebase.getDoc(taskRef);
+    
+    if (!taskDoc.exists()) {
+      alert('Задача не знайдена!');
+      return;
+    }
+    
+    const task = taskDoc.data();
+    
+    // Показываем прогресс
+    const progressDiv = document.createElement('div');
+    progressDiv.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60';
+    progressDiv.innerHTML = `
+      <div class="bg-gray-900 rounded-2xl shadow-2xl p-8 w-full max-w-md">
+        <div class="text-center">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <h3 class="text-xl font-bold text-white mb-2">Оновлення задачі</h3>
+          <p class="text-gray-300">Формування списку клієнтів...</p>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(progressDiv);
+    
+    // Формируем clientsSnapshot
+    let clientsSnapshot = [];
+    if (task.params && (task.params.param1 || task.params.param2 || task.params.param3)) {
+      let c1 = [], c2 = [], c3 = [];
+      if (task.params.param1) c1 = (await getFocusClientsParam1({products: task.products, params: task.params}, task.period)).map(c => ({...c, params: ['param1']}));
+      if (task.params.param2) c2 = (await getFocusClientsParam2({products: task.products, params: task.params})).map(c => ({...c, params: ['param2']}));
+      if (task.params.param3) c3 = (await getFocusClientsParam3({products: task.products, params: task.params, xProducts: task.xProducts})).map(c => ({...c, params: ['param3']}));
+      
+      const byCode = {};
+      [...c1, ...c2, ...c3].forEach(c => {
+        if (!byCode[c.code]) {
+          byCode[c.code] = { code: c.code, name: c.name, manager: c.manager, sphere: c.sphere, link: c.link, params: c.params };
+        } else {
+          c.params.forEach(p => {
+            if (!byCode[c.code].params.includes(p)) byCode[c.code].params.push(p);
+          });
+        }
+      });
+      clientsSnapshot = Object.values(byCode);
+    }
+    
+    // Обновляем задачу
+    await firebase.updateDoc(taskRef, {
+      clientsSnapshot: clientsSnapshot,
+      updatedAt: new Date()
+    });
+    
+    // Убираем прогресс
+    progressDiv.remove();
+    
+    // Показываем успех
+    alert(`✅ Задача оновлена! Знайдено ${clientsSnapshot.length} клієнтів.`);
+    
+    // Обновляем страницу
+    location.reload();
+    
+  } catch (error) {
+    console.error('❌ Ошибка обновления задачи:', error);
+    alert('Помилка оновлення задачі: ' + error.message);
+  }
+};
 
 // --- Новый способ хранения пометок через Firestore ---
 export async function getFocusNotes(taskId) {
@@ -518,8 +615,47 @@ function renderTaskDetails(container, task, onBack) {
     let clientsData = [];
     async function renderContent() {
         if (!task.clientsSnapshot || !Array.isArray(task.clientsSnapshot) || !task.clientsSnapshot.length) {
-            tabContentDiv.innerHTML = '<div class="text-red-400">Задача створена за старою логікою. Пересоздайте задачу для коректних звітів.</div>';
+            tabContentDiv.innerHTML = `
+                <div class="text-red-400 mb-4">Задача створена за старою логікою. Пересоздайте задачу для коректних звітів.</div>
+                <button onclick="updateOldFocusTask('${task.id}')" class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">
+                    🔄 Оновити задачу
+                </button>
+            `;
             return;
+        }
+        
+        // Функція для застосування фільтрів та оновлення таблиці
+        async function applyFiltersAndUpdateTable() {
+            try {
+                console.log('🔧 Застосування фільтрів:', currentFilters);
+                
+                // Застосовуємо фільтри до клієнтів
+                const filtered = applyClientFilters(filteredClients, notes, currentFilters);
+                
+                // Оновлюємо таблицю клієнтів
+                const clientsContainer = tabContentDiv.querySelector('#focusClientsTableContainer');
+                if (clientsContainer) {
+                    clientsContainer.innerHTML = renderFocusClientsTable(task.id, filtered, notes);
+                    
+                    // Прикріплюємо обробники подій до таблиці
+                    attachTableHandlers(task.id);
+                }
+                
+                // Оновлюємо лічильник
+                const filterCountElement = filtersBlock.querySelector('#focusFilterCount');
+                if (filterCountElement) {
+                    filterCountElement.textContent = filtered.length;
+                }
+                
+                console.log('✅ Фільтри застосовано:', {
+                    total: filteredClients.length,
+                    filtered: filtered.length,
+                    filters: currentFilters
+                });
+                
+            } catch (error) {
+                console.error('❌ Помилка застосування фільтрів:', error);
+            }
         }
         let allSales = window._focusSalesCache;
         if (!allSales) {
@@ -561,42 +697,79 @@ function renderTaskDetails(container, task, onBack) {
         }
         // --- Компактные фильтры ---
         const uniqueManagers = Array.from(new Set(filteredClients.map(c => (c.manager||'').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'uk'));
+        const uniqueSpheres = Array.from(new Set(filteredClients.map(c => (c.sphere||'').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'uk'));
+        
+        // Завантажуємо менеджерів з Firebase
+        const firebaseManagers = await loadManagersFromFirebase();
+        const firebaseDepartments = await loadDepartmentsFromFirebase();
+        
+        // Об'єднуємо менеджерів з клієнтів та Firebase
+        const allManagers = [...new Set([...uniqueManagers, ...firebaseManagers.map(m => m.name)])].sort((a, b) => a.localeCompare(b, 'uk'));
+        
+        // Отримуємо доступних менеджерів для поточного відділу
+        const availableManagers = updateManagersByDepartment(firebaseManagers, currentFilters.department);
+        
         const filtersHTML = `
-            <div class="flex flex-wrap gap-2 items-end mb-2">
-                <div>
-                    <label class="block text-gray-300 text-xs">Менеджер</label>
-                    <select id="focusFilterManager" class="dark-input h-7 text-xs px-2 py-1">
-                        <option value="">Всі</option>
-                        ${uniqueManagers.map(m => `<option value="${m}" ${currentFilters.manager === m ? 'selected' : ''}>${m}</option>`).join('')}
-                    </select>
+            <div class="bg-gray-700 rounded-lg p-4 mb-4">
+                <h3 class="text-white font-semibold mb-3">Фільтри клієнтів</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-gray-300 text-sm mb-1">Відділ (${firebaseDepartments.length})</label>
+                        <select id="focusFilterDepartment" class="dark-input bg-gray-600 text-gray-200 w-full">
+                            <option value="">Всі відділи</option>
+                            ${firebaseDepartments.map(dept => `<option value="${dept}" ${currentFilters.department === dept ? 'selected' : ''}>${dept}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm mb-1">Менеджер (${availableManagers.length})</label>
+                        <select id="focusFilterManager" class="dark-input bg-gray-600 text-gray-200 w-full">
+                            <option value="">Всі менеджери</option>
+                            ${availableManagers.map(m => `<option value="${m}" ${currentFilters.manager === m ? 'selected' : ''}>${m}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm mb-1">Сфера діяльності</label>
+                        <select id="focusFilterSphere" class="dark-input bg-gray-600 text-gray-200 w-full">
+                            <option value="">Всі сфери</option>
+                            ${uniqueSpheres.map(s => `<option value="${s}" ${currentFilters.sphere === s ? 'selected' : ''}>${s}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm mb-1">Сума продажів від</label>
+                        <input type="number" id="focusFilterSumMin" class="dark-input bg-gray-600 text-gray-200 w-full" placeholder="0" value="${currentFilters.sumMin}">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-gray-300 text-xs mb-1">Без пропозиції</label>
-                    <input type="checkbox" id="focusFilterProposal" ${currentFilters.proposal ? 'checked' : ''}>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                    <div>
+                        <label class="block text-gray-300 text-sm mb-1">Сума продажів до</label>
+                        <input type="number" id="focusFilterSumMax" class="dark-input bg-gray-600 text-gray-200 w-full" placeholder="∞" value="${currentFilters.sumMax}">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm mb-1">Остання комунікація з</label>
+                        <input type="date" id="focusFilterLastCommFrom" class="dark-input bg-gray-600 text-gray-200 w-full" value="${currentFilters.lastCommFrom}">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm mb-1">Остання комунікація по</label>
+                        <input type="date" id="focusFilterLastCommTo" class="dark-input bg-gray-600 text-gray-200 w-full" value="${currentFilters.lastCommTo}">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm mb-1">Пошук клієнта</label>
+                        <input type="text" id="focusFilterSearch" class="dark-input bg-gray-600 text-gray-200 w-full" placeholder="Ім'я або код клієнта" value="${currentFilters.search||''}">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-gray-300 text-xs">Сфера</label>
-                    <input type="text" id="focusFilterSphere" class="dark-input h-7 text-xs px-2 py-1" placeholder="Сфера" value="${currentFilters.sphere}">
-                </div>
-                <div>
-                    <label class="block text-gray-300 text-xs">Сума від</label>
-                    <input type="number" id="focusFilterSumMin" class="dark-input h-7 text-xs px-2 py-1" style="width:70px;" value="${currentFilters.sumMin}">
-                </div>
-                <div>
-                    <label class="block text-gray-300 text-xs">Сума до</label>
-                    <input type="number" id="focusFilterSumMax" class="dark-input h-7 text-xs px-2 py-1" style="width:70px;" value="${currentFilters.sumMax}">
-                </div>
-                <div>
-                    <label class="block text-gray-300 text-xs">Остання комунікація з</label>
-                    <input type="date" id="focusFilterLastCommFrom" class="dark-input h-7 text-xs px-2 py-1" style="width:120px;" value="${currentFilters.lastCommFrom}">
-                </div>
-                <div>
-                    <label class="block text-gray-300 text-xs">по</label>
-                    <input type="date" id="focusFilterLastCommTo" class="dark-input h-7 text-xs px-2 py-1" style="width:120px;" value="${currentFilters.lastCommTo}">
-                </div>
-                <div>
-                    <label class="block text-gray-300 text-xs">Пошук</label>
-                    <input type="text" id="focusFilterSearch" class="dark-input h-7 text-xs px-2 py-1" placeholder="Ім'я або код клієнта" value="${currentFilters.search||''}">
+                <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-600">
+                    <div class="text-sm text-gray-400">
+                        Знайдено: <span id="focusFilterCount" class="text-white font-semibold">${filteredClients.length}</span> клієнтів
+                    </div>
+                    <div class="flex gap-2">
+                        <label class="flex items-center text-gray-300 text-sm">
+                            <input type="checkbox" id="focusFilterProposal" class="mr-2" ${currentFilters.proposal ? 'checked' : ''}>
+                            Тільки без пропозиції
+                        </label>
+                        <button id="focusFilterReset" class="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-500">
+                            Скинути фільтри
+                        </button>
+                    </div>
                 </div>
             </div>
             <div id="focusClientsTableContainer"></div>
@@ -606,14 +779,145 @@ function renderTaskDetails(container, task, onBack) {
         const filtered = applyClientFilters(filteredClients, notes, currentFilters);
         tabContentDiv.innerHTML = `<div id="focusClientsTableContainer"></div>`;
         tabContentDiv.querySelector('#focusClientsTableContainer').innerHTML = renderFocusClientsTable(task.id, filtered, notes);
-        if (filtersBlock.querySelector('#focusFilterManager')) filtersBlock.querySelector('#focusFilterManager').onchange = (e) => { currentFilters.manager = e.target.value; renderContent(); };
-        if (filtersBlock.querySelector('#focusFilterProposal')) filtersBlock.querySelector('#focusFilterProposal').onchange = (e) => { currentFilters.proposal = e.target.checked; renderContent(); };
-        if (filtersBlock.querySelector('#focusFilterSphere')) filtersBlock.querySelector('#focusFilterSphere').oninput = (e) => { currentFilters.sphere = e.target.value; renderContent(); };
-        if (filtersBlock.querySelector('#focusFilterSumMin')) filtersBlock.querySelector('#focusFilterSumMin').oninput = (e) => { currentFilters.sumMin = e.target.value; renderContent(); };
-        if (filtersBlock.querySelector('#focusFilterSumMax')) filtersBlock.querySelector('#focusFilterSumMax').oninput = (e) => { currentFilters.sumMax = e.target.value; renderContent(); };
-        if (filtersBlock.querySelector('#focusFilterLastCommFrom')) filtersBlock.querySelector('#focusFilterLastCommFrom').onchange = (e) => { currentFilters.lastCommFrom = e.target.value; renderContent(); };
-        if (filtersBlock.querySelector('#focusFilterLastCommTo')) filtersBlock.querySelector('#focusFilterLastCommTo').onchange = (e) => { currentFilters.lastCommTo = e.target.value; renderContent(); };
-        if (filtersBlock.querySelector('#focusFilterSearch')) filtersBlock.querySelector('#focusFilterSearch').oninput = (e) => { currentFilters.search = e.target.value; renderContent(); };
+        
+        // Оновлюємо лічильник
+        const filterCountElement = filtersBlock.querySelector('#focusFilterCount');
+        if (filterCountElement) {
+            filterCountElement.textContent = filtered.length;
+        }
+        
+        // Обробники подій для фільтрів
+        if (filtersBlock.querySelector('#focusFilterDepartment')) {
+            filtersBlock.querySelector('#focusFilterDepartment').onchange = async (e) => { 
+                currentFilters.department = e.target.value;
+                currentFilters.manager = ''; // Скидаємо менеджера при зміні відділу
+                
+                // Оновлюємо список менеджерів
+                const availableManagers = updateManagersByDepartment(firebaseManagers, e.target.value);
+                const managerSelect = filtersBlock.querySelector('#focusFilterManager');
+                if (managerSelect) {
+                    managerSelect.innerHTML = `
+                        <option value="">Всі менеджери</option>
+                        ${availableManagers.map(m => `<option value="${m}">${m}</option>`).join('')}
+                    `;
+                    
+                    // Оновлюємо лічильник менеджерів
+                    const managerLabel = managerSelect.previousElementSibling;
+                    if (managerLabel) {
+                        managerLabel.textContent = `Менеджер (${availableManagers.length})`;
+                    }
+                }
+                
+                // Застосовуємо фільтри та оновлюємо таблицю
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        
+        if (filtersBlock.querySelector('#focusFilterManager')) {
+            filtersBlock.querySelector('#focusFilterManager').onchange = async (e) => { 
+                currentFilters.manager = e.target.value; 
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        if (filtersBlock.querySelector('#focusFilterSphere')) {
+            filtersBlock.querySelector('#focusFilterSphere').onchange = async (e) => { 
+                currentFilters.sphere = e.target.value; 
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        if (filtersBlock.querySelector('#focusFilterProposal')) {
+            filtersBlock.querySelector('#focusFilterProposal').onchange = async (e) => { 
+                currentFilters.proposal = e.target.checked; 
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        if (filtersBlock.querySelector('#focusFilterSumMin')) {
+            filtersBlock.querySelector('#focusFilterSumMin').oninput = async (e) => { 
+                currentFilters.sumMin = e.target.value; 
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        if (filtersBlock.querySelector('#focusFilterSumMax')) {
+            filtersBlock.querySelector('#focusFilterSumMax').oninput = async (e) => { 
+                currentFilters.sumMax = e.target.value; 
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        if (filtersBlock.querySelector('#focusFilterLastCommFrom')) {
+            filtersBlock.querySelector('#focusFilterLastCommFrom').onchange = async (e) => { 
+                currentFilters.lastCommFrom = e.target.value; 
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        if (filtersBlock.querySelector('#focusFilterLastCommTo')) {
+            filtersBlock.querySelector('#focusFilterLastCommTo').onchange = async (e) => { 
+                currentFilters.lastCommTo = e.target.value; 
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        if (filtersBlock.querySelector('#focusFilterSearch')) {
+            filtersBlock.querySelector('#focusFilterSearch').oninput = async (e) => { 
+                currentFilters.search = e.target.value; 
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        
+        // Кнопка скидання фільтрів
+        if (filtersBlock.querySelector('#focusFilterReset')) {
+            filtersBlock.querySelector('#focusFilterReset').onclick = async () => {
+                console.log('🔧 Скидання фільтрів');
+                
+                currentFilters = {
+                    department: '',
+                    manager: '',
+                    proposal: false,
+                    sphere: '',
+                    sumMin: '',
+                    sumMax: '',
+                    lastCommFrom: '',
+                    lastCommTo: '',
+                    search: ''
+                };
+                
+                // Скидаємо значення фільтрів
+                const departmentSelect = filtersBlock.querySelector('#focusFilterDepartment');
+                const managerSelect = filtersBlock.querySelector('#focusFilterManager');
+                const sphereSelect = filtersBlock.querySelector('#focusFilterSphere');
+                const sumMinInput = filtersBlock.querySelector('#focusFilterSumMin');
+                const sumMaxInput = filtersBlock.querySelector('#focusFilterSumMax');
+                const lastCommFromInput = filtersBlock.querySelector('#focusFilterLastCommFrom');
+                const lastCommToInput = filtersBlock.querySelector('#focusFilterLastCommTo');
+                const searchInput = filtersBlock.querySelector('#focusFilterSearch');
+                const proposalCheckbox = filtersBlock.querySelector('#focusFilterProposal');
+                
+                if (departmentSelect) departmentSelect.value = '';
+                if (sphereSelect) sphereSelect.value = '';
+                if (sumMinInput) sumMinInput.value = '';
+                if (sumMaxInput) sumMaxInput.value = '';
+                if (lastCommFromInput) lastCommFromInput.value = '';
+                if (lastCommToInput) lastCommToInput.value = '';
+                if (searchInput) searchInput.value = '';
+                if (proposalCheckbox) proposalCheckbox.checked = false;
+                
+                if (managerSelect) {
+                    // Повертаємо всіх менеджерів
+                    const allManagers = firebaseManagers.map(m => m.name);
+                    managerSelect.innerHTML = `
+                        <option value="">Всі менеджери</option>
+                        ${allManagers.map(m => `<option value="${m}">${m}</option>`).join('')}
+                    `;
+                    
+                    const managerLabel = managerSelect.previousElementSibling;
+                    if (managerLabel) {
+                        managerLabel.textContent = `Менеджер (${allManagers.length})`;
+                    }
+                }
+                
+                // Застосовуємо скинуті фільтри
+                await applyFiltersAndUpdateTable();
+            };
+        }
+        
         attachTableHandlers(task.id);
     }
     function renderTabs() {
@@ -831,15 +1135,23 @@ function showEditTaskModal(task, onSaved) {
 function applyClientFilters(clients, notes, filters) {
     return clients.filter(client => {
         const note = notes[client.code] || {};
+        
+        // Фільтр по менеджеру
         if (filters.manager && client.manager && client.manager.trim().toLowerCase() !== filters.manager.trim().toLowerCase()) {
             return false;
         }
+        
+        // Фільтр по сфері діяльності
+        if (filters.sphere && client.sphere && client.sphere.trim().toLowerCase() !== filters.sphere.trim().toLowerCase()) {
+            return false;
+        }
+        
+        // Фільтр "тільки без пропозиції"
         if (filters.proposal && note.done) {
             return false;
         }
-        if (filters.sphere && !client.sphere?.toLowerCase().includes(filters.sphere.toLowerCase())) {
-            return false;
-        }
+        
+        // Фільтр по сумі продажів
         const sum = client.sum || 0;
         if (filters.sumMin && sum < parseFloat(filters.sumMin)) {
             return false;
@@ -847,6 +1159,8 @@ function applyClientFilters(clients, notes, filters) {
         if (filters.sumMax && sum > parseFloat(filters.sumMax)) {
             return false;
         }
+        
+        // Фільтр по даті останньої комунікації
         const commDate = note.commDate ? new Date(note.commDate) : null;
         if (filters.lastCommFrom && (!commDate || commDate < new Date(filters.lastCommFrom))) {
             return false;
@@ -854,51 +1168,125 @@ function applyClientFilters(clients, notes, filters) {
         if (filters.lastCommTo && (!commDate || commDate > new Date(filters.lastCommTo))) {
             return false;
         }
+        
+        // Фільтр пошуку (ім'я або код клієнта)
         if (filters.search) {
             const search = filters.search.trim().toLowerCase();
-            if (!client.name?.toLowerCase().includes(search) && !client.code?.toLowerCase().includes(search)) {
+            const clientName = (client.name || '').toLowerCase();
+            const clientCode = (client.code || '').toLowerCase();
+            if (!clientName.includes(search) && !clientCode.includes(search)) {
                 return false;
             }
         }
+        
         return true;
     });
 }
 
 export async function initFocusPage(container) {
+    // Проверяем права доступа к модулю
+    if (!window.hasPermission || !window.hasPermission('focus_view')) {
+        container.innerHTML = `
+            <div class="bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
+                <h2 class="text-2xl font-bold text-white mb-4">Доступ заборонено</h2>
+                <p class="text-gray-300">У вас немає прав для перегляду модуля Фокус.</p>
+            </div>
+        `;
+        return;
+    }
+
     container.innerHTML = `
-        <h1 class="text-3xl font-bold text-white mb-4">Фокус</h1>
-        <div class="flex gap-4 mb-4">
-          <button id="focusTabTasks" class="px-4 py-2 rounded bg-orange-600 text-white font-semibold mr-2">Задачі</button>
-          <button id="focusTabReports" class="px-4 py-2 rounded bg-gray-700 text-white font-semibold">Звіти</button>
+        <div>
+            <h1 class="text-3xl font-bold text-white mb-4">Фокус</h1>
+            
+            <!-- Індикатор завантаження -->
+            <div id="focus-loading-container" class="text-center p-8">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mb-4"></div>
+                <div>
+                    <p id="focus-loading-message" class="text-lg font-medium text-gray-200 mb-2">Завантаження фокусних задач...</p>
+                    <div class="bg-gray-700 rounded-full h-2 max-w-md mx-auto mb-2">
+                        <div id="focus-progress-bar" class="bg-orange-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <p id="focus-loading-step" class="text-sm text-gray-400">Ініціалізація...</p>
+                </div>
+            </div>
+            
+            <!-- Основний контент (спочатку прихований) -->
+            <div id="focus-main-content" class="hidden">
+                <div class="flex gap-4 mb-4">
+                  <button id="focusTabTasks" class="px-4 py-2 rounded bg-orange-600 text-white font-semibold mr-2">Задачі</button>
+                  <button id="focusTabReports" class="px-4 py-2 rounded bg-gray-700 text-white font-semibold">Звіти</button>
+                </div>
+                <div id="focusTabPanelTasks"></div>
+                <div id="focusTabPanelReports" style="display:none"></div>
+            </div>
         </div>
-        <div id="focusTabPanelTasks"></div>
-        <div id="focusTabPanelReports" style="display:none"></div>
     `;
-    // --- Универсальный таб-контрол ---
-    const tabTasks = container.querySelector('#focusTabTasks');
-    const tabReports = container.querySelector('#focusTabReports');
-    const panelTasks = container.querySelector('#focusTabPanelTasks');
-    const panelReports = container.querySelector('#focusTabPanelReports');
-    tabTasks.onclick = () => {
-      tabTasks.classList.add('bg-orange-600');
-      tabTasks.classList.remove('bg-gray-700');
-      tabReports.classList.remove('bg-orange-600');
-      tabReports.classList.add('bg-gray-700');
-      panelTasks.style.display = '';
-      panelReports.style.display = 'none';
-    };
-    tabReports.onclick = () => {
-      tabReports.classList.add('bg-orange-600');
-      tabReports.classList.remove('bg-gray-700');
-      tabTasks.classList.remove('bg-orange-600');
-      tabTasks.classList.add('bg-gray-700');
-      panelTasks.style.display = 'none';
-      panelReports.style.display = '';
-      renderFocusReportsTab(panelReports);
-    };
+    // Функции управления загрузкой
+    function updateFocusProgress(percent, message, step) {
+        const progressBar = container.querySelector('#focus-progress-bar');
+        const loadingMessage = container.querySelector('#focus-loading-message');
+        const loadingStep = container.querySelector('#focus-loading-step');
+        
+        if (progressBar) progressBar.style.width = `${percent}%`;
+        if (loadingMessage) loadingMessage.textContent = message;
+        if (loadingStep) loadingStep.textContent = step;
+    }
+    
+    function showFocusContent() {
+        const loadingContainer = container.querySelector('#focus-loading-container');
+        const mainContent = container.querySelector('#focus-main-content');
+        
+        if (loadingContainer) loadingContainer.classList.add('hidden');
+        if (mainContent) mainContent.classList.remove('hidden');
+    }
+    
+    function showFocusError(errorMessage) {
+        const loadingContainer = container.querySelector('#focus-loading-container');
+        if (loadingContainer) {
+            loadingContainer.innerHTML = `
+                <div class="text-center p-8">
+                    <div class="text-red-500 text-6xl mb-4">⚠️</div>
+                    <p class="text-lg font-medium text-red-400 mb-2">Помилка завантаження</p>
+                    <p class="text-sm text-gray-400">${errorMessage}</p>
+                    <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">
+                        Спробувати ще раз
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    try {
+        updateFocusProgress(20, 'Ініціалізація...', 'Підготовка інтерфейсу');
+        
+        // --- Универсальный таб-контрол ---
+        const tabTasks = container.querySelector('#focusTabTasks');
+        const tabReports = container.querySelector('#focusTabReports');
+        const panelTasks = container.querySelector('#focusTabPanelTasks');
+        const panelReports = container.querySelector('#focusTabPanelReports');
+        tabTasks.onclick = () => {
+          tabTasks.classList.add('bg-orange-600');
+          tabTasks.classList.remove('bg-gray-700');
+          tabReports.classList.remove('bg-orange-600');
+          tabReports.classList.add('bg-gray-700');
+          panelTasks.style.display = '';
+          panelReports.style.display = 'none';
+        };
+        tabReports.onclick = () => {
+          tabReports.classList.add('bg-orange-600');
+          tabReports.classList.remove('bg-gray-700');
+          tabTasks.classList.remove('bg-orange-600');
+          tabTasks.classList.add('bg-gray-700');
+          panelTasks.style.display = 'none';
+          panelReports.style.display = '';
+          renderFocusReportsTab(panelReports);
+        };
+        
+        updateFocusProgress(40, 'Підготовка форм...', 'Створення інтерфейсу задач');
     // --- Рендерим первую вкладку по умолчанию ---
     panelTasks.innerHTML = `
-      <div class="flex gap-4 mb-4 items-end">
+              <div class="flex gap-4 mb-4 items-end">
         <div>
           <label class="block text-gray-300 mb-1">Період дії задачі (з)</label>
           <input type="date" id="focusFilterPeriodFrom" class="dark-input">
@@ -907,15 +1295,21 @@ export async function initFocusPage(container) {
           <label class="block text-gray-300 mb-1">по</label>
           <input type="date" id="focusFilterPeriodTo" class="dark-input">
         </div>
+        ${window.hasPermission && window.hasPermission('focus_create') ? `
+        <button id="createFocusTaskBtn" class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">
+          Створити задачу
+        </button>
+        ` : ''}
+        </div>
         <button id="focusFilterApply" class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">Застосувати</button>
       </div>
       <div id="focus-tasks-list" class="mb-6"></div>
-      <button id="createFocusTaskBtn" class="px-6 py-2 bg-orange-600 text-white font-semibold rounded-md hover:bg-orange-700 mb-4 hidden">Створити нову задачу</button>
       <div id="focus-task-details"></div>`;
-    // --- Старая логика задач ---
+    // --- Обработчик для кнопки создания задачи ---
     const createBtn = panelTasks.querySelector('#createFocusTaskBtn');
-    createBtn.classList.toggle('hidden', !hasPermission('focus_create'));
-    createBtn.onclick = () => showCreateTaskModal(container, () => initFocusPage(container));
+    if (createBtn) {
+        createBtn.onclick = () => showCreateTaskModal(container, () => initFocusPage(container));
+    }
     // Загрузка задач из Firestore
     try {
         const companyId = window.state.currentCompanyId;
@@ -957,10 +1351,28 @@ export async function initFocusPage(container) {
         }
         const filterBtn = panelTasks.querySelector('#focusFilterApply');
         if (filterBtn) filterBtn.onclick = applyTaskFilters;
+        
+        updateFocusProgress(80, 'Завантаження задач...', 'Отримання даних з Firebase');
         renderTaskList();
+        
+        updateFocusProgress(100, 'Готово!', 'Модуль Фокус успішно завантажено');
+        
+        // Задержка чтобы пользователь увидел 100%
+        setTimeout(() => {
+            showFocusContent();
+        }, 500);
+        
     } catch (e) {
         panelTasks.querySelector('#focus-tasks-list').innerHTML = '<div class="text-red-400">Помилка завантаження задач: ' + e.message + '</div>';
+        setTimeout(() => {
+            showFocusContent();
+        }, 1000);
     }
+    
+} catch (error) {
+    console.error('❌ Помилка завантаження модуля Фокус:', error);
+    showFocusError(error.message || 'Невідома помилка');
+}
 }
 
 // --- Новая функция для вкладки Звіти ---
@@ -1085,7 +1497,12 @@ async function renderFocusReportsTab(panel) {
           }
         } else {
           // Нет clientsSnapshot — показываем предупреждение и не строим отчёт
-          tableDiv.innerHTML = '<div class="text-red-400">Задача створена за старою логікою. Пересоздайте задачу для коректних звітів.</div>';
+          tableDiv.innerHTML = `
+            <div class="text-red-400 mb-4">Задача створена за старою логікою. Пересоздайте задачу для коректних звітів.</div>
+            <button onclick="updateOldFocusTask('${task.id}')" class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">
+              🔄 Оновити задачу
+            </button>
+          `;
           return;
         }
         allClients = allClients.concat(clients);
@@ -1553,4 +1970,104 @@ function attachTableHandlers(taskId) {
       setFocusNote(taskId, clientCode, { comment: input.value });
     };
   });
+}
+
+// --- Функція завантаження менеджерів з Firebase ---
+async function loadManagersFromFirebase() {
+    try {
+        const companyId = window.state?.currentCompanyId;
+        if (!companyId) {
+            console.warn('⚠️ ID компанії не знайдено');
+            return [];
+        }
+        
+        const employeesRef = firebase.collection(firebase.db, 'companies', companyId, 'employees');
+        const employeesSnapshot = await firebase.getDocs(employeesRef);
+        const employeesData = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        console.log('📊 Завантажено співробітників з Firebase:', employeesData.length);
+        
+        // Фільтруємо менеджерів
+        const managersData = employeesData.filter(emp => {
+            // Перевіряємо наявність імені
+            if (!emp.name && !emp.fullName) return false;
+            
+            // Якщо є роль, перевіряємо її
+            if (emp.role) {
+                const role = emp.role.toLowerCase();
+                return role.includes('менеджер') || 
+                       role.includes('manager') || 
+                       role.includes('sales') ||
+                       role.includes('продаж');
+            }
+            
+            // Якщо є посада, перевіряємо її
+            if (emp.position) {
+                const position = emp.position.toLowerCase();
+                return position.includes('менеджер') || 
+                       position.includes('manager') || 
+                       position.includes('sales') ||
+                       position.includes('продаж');
+            }
+            
+            // Якщо немає ролі і посади, беремо всіх з іменем
+            return true;
+        });
+        
+        const managers = managersData
+            .map(emp => ({ 
+                name: emp.name || emp.fullName || emp.id,
+                department: emp.departmentName || emp.department || ''
+            }))
+            .filter(emp => emp.name)
+            .sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+        
+        console.log('✅ Завантажено менеджерів з Firebase:', managers.length);
+        console.log('👥 Приклади менеджерів:', managers.slice(0, 5));
+        
+        return managers;
+    } catch (error) {
+        console.error('❌ Помилка завантаження менеджерів з Firebase:', error);
+        return [];
+    }
+}
+
+// --- Функція завантаження відділів з Firebase ---
+async function loadDepartmentsFromFirebase() {
+    try {
+        const companyId = window.state?.currentCompanyId;
+        if (!companyId) {
+            console.warn('⚠️ ID компанії не знайдено');
+            return [];
+        }
+        
+        const departmentsRef = firebase.collection(firebase.db, 'companies', companyId, 'departments');
+        const departmentsSnapshot = await firebase.getDocs(departmentsRef);
+        const departmentsData = departmentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        const departments = departmentsData
+            .map(dept => dept.name || dept.id)
+            .filter(Boolean)
+            .sort();
+        
+        console.log('✅ Завантажено відділів з Firebase:', departments.length);
+        console.log('📋 Приклади відділів:', departments.slice(0, 5));
+        
+        return departments;
+    } catch (error) {
+        console.error('❌ Помилка завантаження відділів з Firebase:', error);
+        return [];
+    }
+}
+
+// --- Функція оновлення менеджерів при зміні відділу ---
+function updateManagersByDepartment(managers, selectedDepartment) {
+    if (!selectedDepartment) {
+        return managers.map(m => m.name);
+    }
+    
+    return managers
+        .filter(emp => emp.department === selectedDepartment)
+        .map(emp => emp.name)
+        .sort((a, b) => a.localeCompare(b, 'uk'));
 }

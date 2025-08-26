@@ -10,6 +10,7 @@ import { renderDepartmentReport } from './reports.js';
 import { setupUniversalTabs } from './ui.js';
 import { initSalesAssistantPage } from './salesAssistant.js';
 import { initFocusPage } from './focus.js';
+import { initForecastingModule } from './forecasting.js';
 
 // --- Глобальний стан програми ---
 const state = {
@@ -72,19 +73,26 @@ function handleUserLogin(uid) {
     if (savedState) {
         const parsedState = JSON.parse(savedState);
         if (parsedState.currentCompanyId) {
+            console.log('🔄 Автовход: компания найдена, загружаем...');
             selectCompany(parsedState.currentCompanyId, parsedState.currentCompanyName).then(async () => {
                 await setupFirestoreListeners();
-                if (parsedState.lastPageId) {
-                    showPageWithNavUpdate(parsedState.lastPageId);
-                } else {
-                    showPageWithNavUpdate('appPage');
-                }
+                console.log('✅ Автовход: данные загружены, переходим на dashboard');
+                showPageWithNavUpdate('dashboardPage'); // Всегда переходим на dashboard
+                hideGlobalLoader();
+            }).catch(error => {
+                console.error('❌ Ошибка автовхода:', error);
+                // Если автовход не удался, показываем выбор компании
+                ui.showPage('setupPage', state.currentUserPermissions);
+                ui.showAuthForm(false);
+                ui.showCompanySelection(true);
+                loadUserCompanies();
                 hideGlobalLoader();
             });
             return; // Не показувати вибір компанії
         }
     }
     // Якщо нема збереженого companyId — показати вибір компанії
+    console.log('🔄 Показываем выбор компании');
     ui.showPage('setupPage', state.currentUserPermissions);
     ui.showAuthForm(false);
     ui.showCompanySelection(true);
@@ -102,6 +110,9 @@ function handleUserLogout() {
     saveAppState(); // Зберігаємо пустий стан при виході
     state.unsubscribers = [];
     window.state = state; // Синхронізуємо window.state
+    
+    // Очищаем кэш разрешений
+    permissionCache.clear();
     
     const currentPage = document.querySelector('.page-transition.active');
     if (currentPage && currentPage.id === 'setupPage') {
@@ -121,6 +132,9 @@ function handleUserLogout() {
          ui.showAuthForm(true); 
          ui.showCompanySelection(false);
     }
+    
+    // ДОБАВЛЕНА СТРОКА: Скрываем загрузчик, так как процесс определения статуса завершен.
+    hideGlobalLoader(); 
 }
 
 // =================================================================================
@@ -174,13 +188,43 @@ async function loadUserCompanies() {
 
 
 async function selectCompany(id, name) {
+    console.log('🏢 Выбор компании:', { id, name });
+    
+    // Обновляем локальное состояние
     state.currentCompanyId = id;
     state.currentCompanyName = name;
-    window.state = state; // Синхронізуємо window.state
+    
+    // Синхронизируем с глобальным состоянием
+    window.state = state;
+    
+    // Очищаем кэш разрешений при смене компании
+    permissionCache.clear();
+    
+    console.log('✅ Состояние обновлено:', {
+        currentCompanyId: state.currentCompanyId,
+        currentCompanyName: state.currentCompanyName
+    });
+    
     ui.showCompanySetupSteps(name);
     saveAppState(); // Зберігаємо обрану компанію
-    await loadCurrentUserPermissions();
-    await loadCurrentEmployeeData(); // Завантажуємо дані співробітника
+    
+    try {
+        await loadCurrentUserPermissions();
+        await loadCurrentEmployeeData(); // Завантажуємо дані співробітника
+        
+        // Принудительно синхронизируем состояние после загрузки данных
+        window.state = state;
+        
+        console.log('✅ Компания успешно выбрана и данные загружены');
+        console.log('🔍 Финальное состояние:', {
+            currentCompanyId: state.currentCompanyId,
+            currentCompanyName: state.currentCompanyName,
+            currentUserId: state.currentUserId
+        });
+    } catch (error) {
+        console.error('❌ Ошибка при выборе компании:', error);
+        throw error;
+    }
 }
 
 async function createCompany() {
@@ -246,6 +290,8 @@ async function loadCurrentUserPermissions() {
 
         if (memberSnap.exists()) {
             const memberData = memberSnap.data();
+            console.log('📋 Данные участника:', memberData);
+            
             // Починаємо з дозволів
             state.currentUserPermissions = memberData.permissions || {};
             // Додаємо інші важливі властивості
@@ -253,12 +299,17 @@ async function loadCurrentUserPermissions() {
             state.currentUserPermissions.roleId = memberData.roleId;
 
             if (memberData.role === 'owner') {
+                console.log('👑 Пользователь является владельцем');
                 state.currentUserPermissions.isOwner = true;
                 // Власник автоматично має всі дозволи
                 ui.ALL_POSSIBLE_PERMISSIONS.forEach(p => state.currentUserPermissions[p.id] = true);
+                console.log('✅ Владельцу назначены все разрешения');
+            } else {
+                console.log('👤 Пользователь не является владельцем, роль:', memberData.role);
             }
         } else {
             // Користувач не є членом цієї компанії (або документ ще не створено)
+            console.log('❌ Пользователь не найден в списке участников компании');
             state.currentUserPermissions = {};
             // ui.showToast("Вас не знайдено у списку учасників цієї компанії.", "warning");
         }
@@ -271,10 +322,18 @@ async function loadCurrentUserPermissions() {
     }
     window.state = state; // Синхронізуємо window.state
     console.log("Дозволи користувача завантажено:", state.currentUserPermissions);
+    console.log("🔍 Состояние после загрузки разрешений:", {
+        currentCompanyId: state.currentCompanyId,
+        currentCompanyName: state.currentCompanyName,
+        currentUserId: state.currentUserId
+    });
 }
 
 // --- ЗБЕРЕЖЕННЯ/ВІДНОВЛЕННЯ СТАНУ ДОДАТКУ ---
 function saveAppState() {
+    // Принудительно синхронизируем состояние перед сохранением
+    window.state = state;
+    
     const appState = {
         currentCompanyId: state.currentCompanyId,
         currentCompanyName: state.currentCompanyName,
@@ -284,6 +343,11 @@ function saveAppState() {
     try {
         localStorage.setItem('savievAppState', JSON.stringify(appState));
         console.log("Стан додатку збережено:", appState);
+        console.log("🔍 Состояние при сохранении:", {
+            currentCompanyId: state.currentCompanyId,
+            currentCompanyName: state.currentCompanyName,
+            currentUserId: state.currentUserId
+        });
     } catch (e) {
         console.error("Помилка збереження стану в localStorage:", e);
     }
@@ -294,16 +358,23 @@ function loadAppState() {
         const savedState = localStorage.getItem('savievAppState');
         if (savedState) {
             const parsedState = JSON.parse(savedState);
+            console.log('📦 Загружаем сохраненное состояние:', parsedState);
+            
             state.currentCompanyId = parsedState.currentCompanyId;
             state.currentCompanyName = parsedState.currentCompanyName;
             state.currentDate = parsedState.currentDate ? new Date(parsedState.currentDate) : new Date();
             state.lastPageId = parsedState.lastPageId;
             window.state = state; // Синхронізуємо window.state
-            console.log("Стан додатку відновлено:", parsedState);
+            
+            console.log("✅ Стан додатку відновлено:", {
+                currentCompanyId: state.currentCompanyId,
+                currentCompanyName: state.currentCompanyName,
+                lastPageId: state.lastPageId
+            });
             return true;
         }
     } catch (e) {
-        console.error("Помилка відновлення стану з localStorage:", e);
+        console.error("❌ Помилка відновлення стану з localStorage:", e);
         localStorage.removeItem('savievAppState'); // Очистити пошкоджений стан
     }
     return false;
@@ -324,13 +395,33 @@ async function loadCurrentEmployeeData() {
     }
     window.state = state; // Синхронізуємо window.state
     console.log("Дані поточного співробітника:", state.currentEmployeeData);
+    console.log("🔍 Состояние после загрузки данных сотрудника:", {
+        currentCompanyId: state.currentCompanyId,
+        currentCompanyName: state.currentCompanyName,
+        currentUserId: state.currentUserId
+    });
 }
 
 /**
  * Оновлює лічильник сповіщень та рендерить список заявок на відпустку.
  * Фільтрує заявки відповідно до дозволів поточного користувача.
  */
-function updateVacationNotifications() {
+// Функция для загрузки AI уведомлений из модуля сигнализации
+async function loadAIRecommendationNotifications() {
+    try {
+        // Проверяем, что мы находимся в модуле сигнализации
+        if (typeof window.loadAIRecommendationNotifications === 'function') {
+            const aiNotifications = await window.loadAIRecommendationNotifications();
+            return aiNotifications;
+        }
+        return [];
+    } catch (error) {
+        console.error('Ошибка загрузки AI уведомлений:', error);
+        return [];
+    }
+}
+
+async function updateVacationNotifications() {
     const pendingRequests = state.vacationRequests.filter(req => req.status === 'pending');
     const relevantRequestsSet = new Set();
 
@@ -359,18 +450,210 @@ function updateVacationNotifications() {
     }
 
     const relevantPendingRequests = Array.from(relevantRequestsSet);
-    state.pendingVacationRequestsCount = relevantPendingRequests.length;
+    
+    // Загружаем AI уведомления
+    const aiNotifications = await loadAIRecommendationNotifications();
+    console.log(`📊 AI уведомлений: ${aiNotifications.length}, отпускных: ${relevantPendingRequests.length}`);
+    
+    // Объединяем уведомления
+    const allNotifications = [
+        ...relevantPendingRequests.map(req => ({
+            id: req.id,
+            type: 'vacation',
+            title: `Заявка на відпустку від ${req.employeeName}`,
+            description: `${req.startDate?.toLocaleDateString() || 'N/A'} - ${req.endDate?.toLocaleDateString() || 'N/A'}`,
+            status: req.status,
+            createdAt: req.submittedAt || new Date()
+        })),
+        ...aiNotifications.map(notif => ({
+            id: notif.id,
+            type: 'ai_recommendation',
+            title: notif.title,
+            description: notif.description,
+            clientCode: notif.clientCode,
+            clientName: notif.clientName,
+            priority: notif.priority,
+            actionType: notif.actionType,
+            createdAt: notif.createdAt
+        }))
+    ];
+    
+    console.log(`📋 Всего уведомлений: ${allNotifications.length}`);
+    
+    state.pendingVacationRequestsCount = allNotifications.length;
     ui.updateNotificationBell(state.pendingVacationRequestsCount);
-    ui.renderNotifications(relevantPendingRequests, handleNotificationClick);
+    ui.renderNotifications(allNotifications, handleNotificationClick);
 }
 
+// Кэш для результатов проверки разрешений
+const permissionCache = new Map();
+
 export function hasPermission(permissionKey) {
-    if (state.currentUserPermissions.isOwner) return true; 
-    return state.currentUserPermissions[permissionKey] === true;
+    // Всегда читаем из глобального объекта window.state
+    const currentState = window.state;
+    
+    if (!currentState || !currentState.currentUserPermissions) {
+        return false;
+    }
+    
+    // Проверяем кэш
+    const cacheKey = `${permissionKey}_${currentState.currentUserId}`;
+    if (permissionCache.has(cacheKey)) {
+        return permissionCache.get(cacheKey);
+    }
+    
+    if (currentState.currentUserPermissions.isOwner) {
+        permissionCache.set(cacheKey, true);
+        return true; 
+    }
+    
+    const hasPermission = currentState.currentUserPermissions[permissionKey] === true;
+    permissionCache.set(cacheKey, hasPermission);
+    return hasPermission;
 }
 
 // Делаем функцию доступной глобально для использования в модулях
 window.hasPermission = hasPermission;
+
+// Функция для отображения доступных модулей на dashboard
+function renderDashboardModules() {
+    const modulesContainer = document.getElementById('dashboardModules');
+    if (!modulesContainer) {
+        console.error('❌ Элемент dashboardModules не найден!');
+        return;
+    }
+    
+    // Всегда читаем из глобального объекта window.state
+    const currentState = window.state;
+    
+    // Логируем только при первой загрузке или при изменении разрешений
+    if (!window.lastLoggedPermissions || JSON.stringify(window.lastLoggedPermissions) !== JSON.stringify(currentState.currentUserPermissions)) {
+        console.log('🔍 renderDashboardModules - текущие разрешения:', currentState.currentUserPermissions);
+        window.lastLoggedPermissions = currentState.currentUserPermissions;
+    }
+
+    const modules = [
+        {
+            id: 'appPage',
+            title: 'Табель обліку робочого часу',
+            description: 'Ведення табеля, відмітки про робочий час',
+            icon: '📊',
+            permission: 'timesheet_view',
+            color: 'bg-blue-600 hover:bg-blue-700'
+        },
+        {
+            id: 'salesAssistantPage',
+            title: 'Помічник продажу',
+            description: 'Аналітика продажів, алерти, фокусні задачі',
+            icon: '💼',
+            permission: 'sales_manage',
+            color: 'bg-green-600 hover:bg-green-700'
+        },
+        {
+            id: 'massSalaryPage',
+            title: 'Масовий розрахунок ЗП',
+            description: 'Розрахунок зарплати для всіх співробітників',
+            icon: '💰',
+            permission: 'massSalary_view_page',
+            color: 'bg-yellow-600 hover:bg-yellow-700'
+        },
+        {
+            id: 'salaryPage',
+            title: 'Індивідуальний розрахунок ЗП',
+            description: 'Розрахунок зарплати з KPI',
+            icon: '📈',
+            permission: 'kpiIndividual_view_page',
+            color: 'bg-purple-600 hover:bg-purple-700'
+        },
+        {
+            id: 'vacationsPage',
+            title: 'Відпустки',
+            description: 'Управління відпустками та заявками',
+            icon: '🏖️',
+            permission: 'vacations_view_page',
+            color: 'bg-teal-600 hover:bg-teal-700'
+        },
+        {
+            id: 'reportsPage',
+            title: 'Звіти',
+            description: 'Аналітичні звіти та динаміка',
+            icon: '📋',
+            permission: 'reports_view_page',
+            color: 'bg-indigo-600 hover:bg-indigo-700'
+        },
+        {
+            id: 'competenciesPage',
+            title: 'Компетенції',
+            description: 'Оцінка компетенцій співробітників',
+            icon: '🎯',
+            permission: 'competencies_view_page',
+            color: 'bg-pink-600 hover:bg-pink-700'
+        },
+        {
+            id: 'forecastingPage',
+            title: 'Прогнозування',
+            description: 'Планування та прогнозування',
+            icon: '🔮',
+            permission: 'forecasting_view_page',
+            color: 'bg-orange-600 hover:bg-orange-700'
+        }
+    ];
+
+    // Фильтруем доступные модули
+    const availableModules = modules.filter(module => {
+        let hasAccess = false;
+        
+        if (module.id === 'salesAssistantPage') {
+            hasAccess = hasPermission('sales_manage') || 
+                   hasPermission('alerts_view_page') || 
+                   hasPermission('department_dashboard_view') || 
+                   hasPermission('focus_view') || 
+                   hasPermission('debts_view_page') || 
+                   hasPermission('planfact_view_page') || 
+                   hasPermission('manager_calendar_view_page') || 
+                   hasPermission('workload_view') ||
+                   hasPermission('sales_assistant_page');
+        } else {
+            hasAccess = hasPermission(module.permission);
+        }
+        
+        return hasAccess;
+    });
+    
+    console.log(`✅ Доступных модулей: ${availableModules.length}`);
+
+    // Очищаем контейнер
+    modulesContainer.innerHTML = '';
+
+    // Добавляем карточки доступных модулей
+    availableModules.forEach(module => {
+        const moduleCard = document.createElement('div');
+        moduleCard.className = `p-6 rounded-xl shadow-lg cursor-pointer transition-all duration-300 transform hover:scale-105 ${module.color} text-white`;
+        moduleCard.onclick = () => showPageWithNavUpdate(module.id);
+        
+        moduleCard.innerHTML = `
+            <div class="text-4xl mb-4">${module.icon}</div>
+            <h3 class="text-xl font-bold mb-2">${module.title}</h3>
+            <p class="text-gray-200 text-sm">${module.description}</p>
+        `;
+        
+        modulesContainer.appendChild(moduleCard);
+    });
+
+    // Если нет доступных модулей, показываем сообщение
+    if (availableModules.length === 0) {
+        console.log('⚠️ Нет доступных модулей, показываем сообщение');
+        modulesContainer.innerHTML = `
+            <div class="col-span-full text-center py-8">
+                <div class="text-4xl mb-4">🔒</div>
+                <h3 class="text-xl font-bold text-gray-300 mb-2">Немає доступних модулів</h3>
+                <p class="text-gray-400">Зверніться до адміністратора для налаштування прав доступу</p>
+            </div>
+        `;
+    }
+    
+    console.log('✅ renderDashboardModules завершена');
+}
 
 
 // =================================================================================
@@ -378,7 +661,8 @@ window.hasPermission = hasPermission;
 // =================================================================================
 
 async function setupFirestoreListeners() {
-    if (!state.currentCompanyId) {
+    const companyId = window.state.currentCompanyId;
+    if (!companyId) {
         console.warn("Компанія не вибрана. Неможливо налаштувати слухачі.");
         return;
     }
@@ -389,24 +673,49 @@ async function setupFirestoreListeners() {
     ui.showLoading(true);
 
     return new Promise((resolve) => {
+        // --- ДИНАМИЧЕСКИЙ ПОДСЧЕТ КОЛИЧЕСТВА СЛУШАТЕЛЕЙ ---
+        let totalCollectionsToLoad = 5; // 5 базовых коллекций (employees, departments, etc.)
+        if (hasPermission('kpiIndividual_view_page') || hasPermission('massSalary_view_page') || hasPermission('settings_kpi_constructor_manage')) {
+            totalCollectionsToLoad++;
+        }
+        if (hasPermission('massSalary_view_page') || hasPermission('reports_view_dynamics')) {
+            totalCollectionsToLoad++;
+        }
+        if (hasPermission('vacations_view_page')) {
+            totalCollectionsToLoad++;
+        }
+        if (hasPermission('sales_manage') || hasPermission('reports_view_dynamics')) {
+            // Если для продаж тоже нужен счетчик, добавьте здесь: totalCollectionsToLoad++;
+            // В вашем коде sales не влиял на счетчик, поэтому пока оставляем так.
+        }
+        console.log(`[setupFirestoreListeners] Ожидаем загрузки ${totalCollectionsToLoad} наборов данных.`);
+        // --- КОНЕЦ ДИНАМИЧЕСКОГО ПОДСЧЕТА ---
+
         let loadedCollectionsCount = 0;
-        const totalCollectionsToLoad = 8; // Збільшили на 1 для відпусток
 
         const checkInitialLoadComplete = () => {
             loadedCollectionsCount++;
+            console.log(`[setupFirestoreListeners] Загружено ${loadedCollectionsCount} из ${totalCollectionsToLoad}`);
             if (loadedCollectionsCount >= totalCollectionsToLoad && !state.initialLoadCompleted) {
                 state.initialLoadCompleted = true;
                 ui.showLoading(false);
                 console.log("Початкове завантаження даних завершено для компанії:", state.currentCompanyName);
                 loadMainConfig().then(() => {
-                    renderApp();
-                    resolve();
+                    // Проверяем, на какой странице мы находимся
+                    const currentPage = document.querySelector('.page-transition.active');
+                    if (currentPage && currentPage.id === 'dashboardPage') {
+                        console.log('🔄 Обновляем модули dashboard после загрузки данных');
+                        renderDashboardModules();
+                    } else {
+                        renderApp();
+                    }
+                    resolve(); // <--- Вот теперь Promise завершится корректно
                 });
             }
         };
         
         async function loadMainConfig() {
-            const configRef = firebase.doc(firebase.db, "companies", state.currentCompanyId, "config", "main");
+            const configRef = firebase.doc(firebase.db, "companies", companyId, "config", "main");
             try {
                 const docSnap = await firebase.getDoc(configRef);
                 if (docSnap.exists()) {
@@ -428,49 +737,43 @@ async function setupFirestoreListeners() {
                 ui.elements.workNormInput.value = state.globalWorkNorm;
                 updateNormTypeUI();
             }
-            window.state = state; // Синхронізуємо window.state
+            window.state = state;
         }
-
 
         const collectionsToListen = {
             'employees': (snapshot) => { 
                 state.allEmployees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
-                window.state = state; // Синхронізуємо window.state
-                if (state.initialLoadCompleted) {
-                    // updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId); // ВІДКЛЮЧЕНО
-                    renderApp(); // ДОДАНО: тепер співробітники зʼявляються одразу
-                }
+                window.state = state;
+                if (state.initialLoadCompleted) renderApp();
             },
             'departments': (snapshot) => {
                 state.departments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                window.state = state; // Синхронізуємо window.state
+                window.state = state;
                 if (state.initialLoadCompleted) {
-                    if (state.currentUserId && state.currentCompanyId) loadCurrentEmployeeData(); // Re-evaluate current employee data if departments change (e.g. manager changes)
-                    // updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId); // ВІДКЛЮЧЕНО
+                    if (state.currentUserId && companyId) loadCurrentEmployeeData();
                 }
             },
             'positions': (snapshot) => { 
                 state.positions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
-                window.state = state; // Синхронізуємо window.state
-                if (state.initialLoadCompleted) { /* updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId); */ } // ВІДКЛЮЧЕНО
+                window.state = state;
             },
             'schedules': (snapshot) => { 
                 state.schedules = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
-                window.state = state; // Синхронізуємо window.state
+                window.state = state;
             },
             'roles': (snapshot) => { 
                 state.availableRoles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
-                window.state = state; // Синхронізуємо window.state
+                window.state = state;
             }
         };
 
         Object.keys(collectionsToListen).forEach(colName => {
-            const colRef = firebase.collection(firebase.db, "companies", state.currentCompanyId, colName);
+            const colRef = firebase.collection(firebase.db, "companies", companyId, colName);
             const unsubscribe = firebase.onSnapshot(colRef, snapshot => {
                 collectionsToListen[colName](snapshot);
                 if (!state.initialLoadCompleted) {
                     checkInitialLoadComplete();
-                    if (colName === 'employees') loadCurrentEmployeeData(); // Ensure current employee data is set after initial employees load
+                    if (colName === 'employees') loadCurrentEmployeeData();
                 } else {
                     renderApp();
                 }
@@ -482,117 +785,91 @@ async function setupFirestoreListeners() {
             state.unsubscribers.push(unsubscribe);
         });
 
-        const kpiSettingsColRef = firebase.collection(firebase.db, "companies", state.currentCompanyId, "kpiSettings");
-        const unsubKpi = firebase.onSnapshot(kpiSettingsColRef, (snapshot) => {
-            state.kpiSettingsCache = {};
-            snapshot.docs.forEach(doc => {
-                const data = doc.data();
-                if (!state.kpiSettingsCache[data.positionId]) {
-                    state.kpiSettingsCache[data.positionId] = {};
-                }
-                const monthKey = `${data.year}${String(data.month).padStart(2, '0')}`;
-                state.kpiSettingsCache[data.positionId][monthKey] = data;
+        if (hasPermission('kpiIndividual_view_page') || hasPermission('massSalary_view_page') || hasPermission('settings_kpi_constructor_manage')) {
+            const kpiSettingsColRef = firebase.collection(firebase.db, "companies", companyId, "kpiSettings");
+            const unsubKpi = firebase.onSnapshot(kpiSettingsColRef, (snapshot) => {
+                state.kpiSettingsCache = {};
+                snapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    if (!state.kpiSettingsCache[data.positionId]) {
+                        state.kpiSettingsCache[data.positionId] = {};
+                    }
+                    const monthKey = `${data.year}${String(data.month).padStart(2, '0')}`;
+                    state.kpiSettingsCache[data.positionId][monthKey] = data;
+                });
+                window.state = state;
+                if (!state.initialLoadCompleted) checkInitialLoadComplete();
+                 else { renderApp(); } 
+            }, (error) => {
+                console.error("Помилка прослуховування налаштувань KPI:", error);
+                if (!state.initialLoadCompleted) checkInitialLoadComplete();
             });
-            window.state = state; // Синхронізуємо window.state
-            if (!state.initialLoadCompleted) checkInitialLoadComplete();
-             else { renderApp(); } 
-        }, (error) => {
-            console.error("Помилка прослуховування налаштувань KPI:", error);
-            if (!state.initialLoadCompleted) checkInitialLoadComplete();
-        });
-        state.unsubscribers.push(unsubKpi);
+            state.unsubscribers.push(unsubKpi);
+        }
 
-        const massSalarySnapshotsColRef = firebase.collection(firebase.db, "companies", state.currentCompanyId, "massSalarySnapshots");
-        const unsubMassSalary = firebase.onSnapshot(massSalarySnapshotsColRef, (snapshot) => {
-            state.massSalarySnapshots = {}; 
-            snapshot.docs.forEach(doc => {
-                state.massSalarySnapshots[doc.id] = doc.data(); 
-            });
-            window.state = state; // Синхронізуємо window.state
-            if (!state.initialLoadCompleted) {
-                checkInitialLoadComplete();
-            } else {
-                const currentPage = document.querySelector('.page-transition.active');
-                if (currentPage && currentPage.id === 'reportsPage') {
-                    loadAndRenderMonthlyDynamicsReport();
+        if (hasPermission('massSalary_view_page') || hasPermission('reports_view_dynamics')) {
+            const massSalarySnapshotsColRef = firebase.collection(firebase.db, "companies", companyId, "massSalarySnapshots");
+            const unsubMassSalary = firebase.onSnapshot(massSalarySnapshotsColRef, (snapshot) => {
+                state.massSalarySnapshots = {}; 
+                snapshot.docs.forEach(doc => {
+                    state.massSalarySnapshots[doc.id] = doc.data(); 
+                });
+                window.state = state;
+                if (!state.initialLoadCompleted) {
+                    checkInitialLoadComplete();
+                } else {
+                    const currentPage = document.querySelector('.page-transition.active');
+                    if (currentPage && currentPage.id === 'reportsPage') {
+                        loadAndRenderMonthlyDynamicsReport();
+                    }
                 }
-            }
-        }, (error) => {
-            console.error("Помилка прослуховування знімків масового розрахунку:", error);
-            if (!state.initialLoadCompleted) checkInitialLoadComplete();
-        });
-        state.unsubscribers.push(unsubMassSalary);
-
-        // НОВИЙ СЛУХАЧ для заявок на відпустку
-        const vacationRequestsColRef = firebase.collection(firebase.db, "companies", state.currentCompanyId, "vacationRequests");
-        const unsubVacations = firebase.onSnapshot(vacationRequestsColRef, (snapshot) => {
-            state.vacationRequests = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                // Конвертуємо Timestamps в Date
-                startDate: doc.data().startDate.toDate(),
-                endDate: doc.data().endDate.toDate(),
-                submittedAt: doc.data().submittedAt.toDate(),
-            }));
-            window.state = state; // Синхронізуємо window.state
-            if (!state.initialLoadCompleted) {
-                checkInitialLoadComplete();
-            } else if (document.querySelector('.page-transition.active')?.id === 'vacationsPage') renderVacationsPage();
-            // Оновлюємо сповіщення при будь-якій зміні заявок
-            updateVacationNotifications();
-        });
-        state.unsubscribers.push(unsubVacations);
-
-        // --- Слухач sales ---
-        const salesColRef = firebase.collection(firebase.db, "companies", state.currentCompanyId, "sales");
-        const unsubSales = firebase.onSnapshot(salesColRef, (snapshot) => {
-            state.salesSnapshots = {};
-            snapshot.docs.forEach(doc => {
-                state.salesSnapshots[doc.id] = doc.data();
+            }, (error) => {
+                console.error("Помилка прослуховування знімків масового розрахунку:", error);
+                if (!state.initialLoadCompleted) checkInitialLoadComplete();
             });
-            window.state = state;
-            if (state.initialLoadCompleted) {
-                const currentPage = document.querySelector('.page-transition.active');
-                if (currentPage && currentPage.id === 'reportsPage') {
-                    loadAndRenderMonthlyDynamicsReport();
+            state.unsubscribers.push(unsubMassSalary);
+        }
+
+        if (hasPermission('vacations_view_page')) {
+            const vacationRequestsColRef = firebase.collection(firebase.db, "companies", companyId, "vacationRequests");
+            const unsubVacations = firebase.onSnapshot(vacationRequestsColRef, (snapshot) => {
+                state.vacationRequests = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    startDate: doc.data().startDate.toDate(),
+                    endDate: doc.data().endDate.toDate(),
+                    submittedAt: doc.data().submittedAt.toDate(),
+                }));
+                window.state = state;
+                if (!state.initialLoadCompleted) {
+                    checkInitialLoadComplete();
+                } else if (document.querySelector('.page-transition.active')?.id === 'vacationsPage') renderVacationsPage();
+                updateVacationNotifications();
+            });
+            state.unsubscribers.push(unsubVacations);
+        }
+
+        if (hasPermission('sales_manage') || hasPermission('reports_view_dynamics')) {
+            const salesColRef = firebase.collection(firebase.db, "companies", companyId, "sales");
+            const unsubSales = firebase.onSnapshot(salesColRef, (snapshot) => {
+                state.salesSnapshots = {};
+                snapshot.docs.forEach(doc => {
+                    state.salesSnapshots[doc.id] = doc.data();
+                });
+                window.state = state;
+                // Этот слушатель не участвует в начальной загрузке, поэтому checkInitialLoadComplete() здесь не вызывается
+                if (state.initialLoadCompleted) {
+                    const currentPage = document.querySelector('.page-transition.active');
+                    if (currentPage && currentPage.id === 'reportsPage') {
+                        loadAndRenderMonthlyDynamicsReport();
+                    }
                 }
-            }
-        }, (error) => {
-            console.error("Помилка прослуховування продажів:", error);
-            if (!state.initialLoadCompleted) checkInitialLoadComplete();
-        });
-        state.unsubscribers.push(unsubSales);
+            }, (error) => {
+                console.error("Помилка прослуховування продажів:", error);
+            });
+            state.unsubscribers.push(unsubSales);
+        }
     });
-}
-
-async function updateMainConfig(key, value) {
-    if (!state.currentCompanyId) return;
-    if (!hasPermission('timesheet_change_norm') && (key === 'workNorm' || key === 'normType')) {
-        ui.showToast("У вас немає дозволу змінювати налаштування норми.", "error");
-        if (key === 'workNorm') ui.elements.workNormInput.value = state.globalWorkNorm;
-        if (key === 'normType') updateNormTypeUI(); 
-        return;
-    }
-
-    const configRef = firebase.doc(firebase.db, "companies", state.currentCompanyId, "config", "main");
-    try {
-        await firebase.setDoc(configRef, { [key]: value }, { merge: true });
-        console.log(`Конфігурацію оновлено: ${key} = ${value}`);
-    } catch (error) {
-        console.error(`Помилка оновлення конфігурації ${key}:`, error);
-    }
-}
-
-// Helper to check if a date is a working day based on a schedule
-function isWorkingDay(date, schedule) {
-    const dayOfWeek = date.getDay(); // 0 for Sunday, 1 for Monday, ..., 6 for Saturday
-    const dayOfWeekNormalized = dayOfWeek === 0 ? 7 : dayOfWeek; // Convert to 1-7 (Monday-Sunday)
-
-    if (!schedule || !schedule.workDays || schedule.workDays.length === 0) {
-        // Default to standard 5-day work week if no specific schedule
-        return dayOfWeekNormalized >= 1 && dayOfWeekNormalized <= 5; // Monday (1) to Friday (5)
-    }
-    return schedule.workDays.includes(dayOfWeekNormalized);
 }
 
 
@@ -724,7 +1001,23 @@ function getNormForEmployee(employee, forDate, startDate = null, endDate = null)
     }
     return state.globalWorkNorm; 
 }
+/**
+ * Проверяет, является ли указанная дата рабочим днем согласно графику.
+ * @param {Date} date - Дата для проверки.
+ * @param {object | null} schedule - Объект графика с массивом workDays.
+ * @returns {boolean} - true, если день рабочий, иначе false.
+ */
+function isWorkingDay(date, schedule) {
+    if (!schedule || !schedule.workDays || schedule.workDays.length === 0) {
+        // Если графика нет, считаем стандартную пятидневку (Пн-Пт рабочие)
+        const dayOfWeek = date.getDay();
+        return dayOfWeek >= 1 && dayOfWeek <= 5; // 1=Пн, 5=Пт
+    }
 
+    // getDay() возвращает 0 для Воскресенья. Нам нужно, чтобы Вс было 7.
+    const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay();
+    return schedule.workDays.includes(dayOfWeek);
+}
 // =================================================================================
 // --- ОБРОБНИКИ ПОДІЙ (HANDLERS) ---
 // =================================================================================
@@ -2409,9 +2702,42 @@ function openViewVacationModal(requestId) {
     ui.openModal('vacationRequestModal');
 }
 
-function handleNotificationClick(requestId) {
+function handleNotificationClick(requestId, type = 'vacation') {
     ui.toggleNotificationsDropdown(); // Закриваємо випадаюче меню сповіщень
-    openViewVacationModal(requestId); // Відкриваємо модальне вікно перегляду заявки
+    
+    if (type === 'ai_recommendation') {
+        // Обработка AI уведомления
+        handleAIRecommendationClick(requestId);
+    } else {
+        // Обработка уведомления о отпуске
+        openViewVacationModal(requestId);
+    }
+}
+
+async function handleAIRecommendationClick(notificationId) {
+    try {
+        // Отмечаем уведомление как прочитанное
+        if (typeof window.markAIRecommendationAsRead === 'function') {
+            await window.markAIRecommendationAsRead(notificationId);
+        }
+        
+        // Переходим в модуль сигнализации
+        showPageWithNavUpdate('signalization');
+        
+        // Обновляем уведомления
+        setTimeout(() => {
+            updateVacationNotifications();
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Ошибка обработки AI уведомления:', error);
+    }
+}
+
+// Функция для принудительного обновления уведомлений
+window.forceUpdateNotifications = async function() {
+    console.log('🔄 Принудительное обновление уведомлений...');
+    await updateVacationNotifications();
 }
 
 async function handleVacationRequestSubmit() {
@@ -2643,11 +2969,38 @@ async function cancelVacationRequest(requestId) {
 
 // --- Навігація та показ сторінок ---
 function showPageWithNavUpdate(pageId) {
+    // Всегда читаем из глобального объекта window.state
+    const currentState = window.state;
+    
     console.log('[showPageWithNavUpdate] pageId:', pageId);
-    ui.showPage(pageId, state.currentUserPermissions); 
-    state.lastPageId = pageId; // Запам'ятовуємо останню відкриту сторінку
-    if (pageId === 'appPage' && hasPermission('timesheet_view')) {
-        renderApp(); 
+    ui.showPage(pageId, currentState.currentUserPermissions); 
+    currentState.lastPageId = pageId; // Запам'ятовуємо останню відкриту сторінку
+    window.state = currentState; // Обновляем глобальное состояние
+    if (pageId === 'dashboardPage') {
+        console.log('🏠 Инициализация главной страницы...');
+        
+        // Проверяем, что страница активна
+        const dashboardPage = document.getElementById('dashboardPage');
+        console.log('📄 Состояние страницы dashboard:', {
+            exists: !!dashboardPage,
+            classes: dashboardPage?.className,
+            isActive: dashboardPage?.classList?.contains('active'),
+            isVisible: dashboardPage?.style?.display !== 'none'
+        });
+        
+        // Обновляем название компании
+        const companyNameElement = document.getElementById('dashboardCompanyName');
+        if (companyNameElement) {
+            companyNameElement.textContent = currentState.currentCompanyName || 'Не обрано';
+        }
+        
+        // Отображаем доступные модули
+        console.log('🔄 Вызываем renderDashboardModules...');
+        renderDashboardModules();
+        
+        console.log('✅ Главная страница инициализирована');
+    } else if (pageId === 'appPage' && hasPermission('timesheet_view')) {
+        renderApp();
     } else if (pageId === 'salaryPage' && hasPermission('kpiIndividual_view_page')) {
         renderSalaryPage();
     } else if (pageId === 'massSalaryPage' && hasPermission('massSalary_view_page')) {
@@ -2662,51 +3015,49 @@ function showPageWithNavUpdate(pageId) {
         // ВІДКЛЮЧЕНО: Ініціалізація сторінки компетенцій
         // updateCompetenciesData(state.departments, state.allEmployees, state.positions, state.currentCompanyId, state.currentUserId);
         console.log('Competencies page DISABLED - module has been deactivated');
-    } else if (pageId === 'salesAssistantPage' && hasPermission('sales_manage')) {
+    } else if (pageId === 'salesAssistantPage' && (hasPermission('sales_manage') || hasPermission('alerts_view_page') || hasPermission('department_dashboard_view') || hasPermission('focus_view') || hasPermission('debts_view_page') || hasPermission('planfact_view_page') || hasPermission('manager_calendar_view_page') || hasPermission('workload_view'))) {
         const container = document.getElementById('salesAssistantPage');
-        initSalesAssistantPage(container);
-        console.log('Sales Assistant page initialized');
-    } else if (!state.currentCompanyId) { 
-        ui.showPage('setupPage', state.currentUserPermissions);
-    } else if (pageId !== 'setupPage' && pageId !== 'landingPage') {
-        // Якщо запитана сторінка недоступна, спробувати перейти на першу доступну
-        const firstAvailablePage = ['appPage', 'massSalaryPage', 'salaryPage', 'reportsPage', 'vacationsPage', 'competenciesPage'].find(p => {
-            if (p === 'appPage') return hasPermission('timesheet_view');
-            if (p === 'massSalaryPage') return hasPermission('massSalary_view_page');
-            if (p === 'salaryPage') return hasPermission('kpiIndividual_view_page');
-            if (p === 'reportsPage') return hasPermission('reports_view_page');
-            if (p === 'vacationsPage') return hasPermission('vacations_view_page'); // Додано дозвіл для відпусток
-            if (p === 'competenciesPage') return hasPermission('competencies_view_page'); // Додано дозвіл для компетенцій
-            return false;
-        });
-
-        if (firstAvailablePage && pageId !== firstAvailablePage) {
-            // Якщо запитана сторінка не є першою доступною, і вона недоступна, перенаправляємо
-             if ((pageId === 'appPage' && !hasPermission('timesheet_view')) ||
-                (pageId === 'massSalaryPage' && !hasPermission('massSalary_view_page')) ||
-                (pageId === 'salaryPage' && !hasPermission('kpiIndividual_view_page')) ||
-                (pageId === 'reportsPage' && !hasPermission('reports_view_page')) ||
-                (pageId === 'vacationsPage' && !hasPermission('vacations_view_page')) ||
-                (pageId === 'competenciesPage' && !hasPermission('competencies_view_page'))) {
-                
-                showPageWithNavUpdate(firstAvailablePage); // Рекурсивний виклик для переходу
+        if (container) {
+            // Проверяем, выбрана ли компания
+            if (!state.currentCompanyId) {
+                console.log('Company not selected, showing setup page');
+                showPageWithNavUpdate('setupPage');
                 return;
             }
-        } else if (!firstAvailablePage) {
-             console.log("No accessible pages for current user.");
-             // Можна показати повідомлення про відсутність доступу до будь-якого розділу
-             if (ui.elements.appContainer) { // Перевірка існування appContainer
-                ui.elements.appContainer.innerHTML = '<p class="text-center text-xl text-gray-400 p-10">У вас немає доступу до жодного розділу.</p>';
-                ui.elements.appContainer.classList.remove('hidden');
-                // Приховуємо інші сторінки, якщо вони були активні
-                Object.values(ui.elements.pages).forEach(pageEl => {
-                    if (pageEl && pageEl.id !== 'appContainer' && pageEl.classList) { // Додаткова перевірка pageEl.classList
-                        pageEl.classList.add('hidden');
-                        pageEl.classList.remove('active');
-                    }
-                });
-             }
+            // Добавляем небольшую задержку для полной загрузки DOM
+            setTimeout(() => {
+                initSalesAssistantPage(container);
+                console.log('Sales Assistant page initialized');
+            }, 100);
+        } else {
+            console.error('Container salesAssistantPage not found');
         }
+    } else if (pageId === 'forecastingPage' && hasPermission('forecasting_view_page')) {
+        console.log('🔍 Инициализация страницы прогнозирования...');
+        console.log('🔐 Проверка разрешений: forecasting_view_page =', hasPermission('forecasting_view_page'));
+        console.log('👤 Текущие разрешения пользователя:', state.currentUserPermissions);
+        
+        const container = document.getElementById('forecastingPage');
+        console.log('📦 Контейнер найден:', container);
+        
+        if (container) {
+            initForecastingModule(container);
+            console.log('✅ Страница прогнозирования инициализирована');
+        } else {
+            console.error('❌ Контейнер forecastingPage не найден!');
+        }
+    } else if (!currentState.currentCompanyId) { 
+        console.log('🏢 Компания не выбрана, показываем setupPage');
+        console.log('🔍 Текущее состояние:', {
+            currentCompanyId: currentState.currentCompanyId,
+            currentCompanyName: currentState.currentCompanyName,
+            currentUserId: currentState.currentUserId
+        });
+        ui.showPage('setupPage', currentState.currentUserPermissions);
+    } else if (pageId !== 'setupPage' && pageId !== 'landingPage' && pageId !== 'appPage' && pageId !== 'dashboardPage') {
+        // Если запрошенная страница недоступна, переходим на dashboard
+        console.log('⚠️ Запрошенная страница недоступна, переходим на dashboard');
+        showPageWithNavUpdate('dashboardPage');
     }
 }
 
@@ -2717,15 +3068,45 @@ function initEventListeners() {
     ui.elements.createCompanyBtn?.addEventListener('click', createCompany);
     ui.elements.showCreateCompanyFormBtn?.addEventListener('click', () => ui.showCreateCompanyForm(true));
     ui.elements.cancelCreateCompanyBtn?.addEventListener('click', () => ui.showCreateCompanyForm(false));
+    
+    // Обработчики для dashboard
+    document.getElementById('dashboardChangeCompanyBtn')?.addEventListener('click', () => {
+        localStorage.removeItem('savievAppState'); // Очищаем сохраненное состояние
+        showPageWithNavUpdate('setupPage');
+    });
+    
+    document.getElementById('dashboardLogoutBtn')?.addEventListener('click', () => {
+        firebase.signOut(firebase.auth);
+    });
     ui.elements.goToAppBtn?.addEventListener('click', async () => {
-        if (!state.currentCompanyId) {
+        // Всегда читаем из глобального объекта window.state, который является единственным источником правды
+        const currentState = window.state;
+        
+        console.log('🔍 Проверка состояния компании:', {
+            currentCompanyId: currentState.currentCompanyId,
+            currentCompanyName: currentState.currentCompanyName,
+            currentUserId: currentState.currentUserId
+        });
+        
+        if (!currentState.currentCompanyId) {
             ui.showToast("Будь ласка, спочатку оберіть або створіть компанію.", "warning");
             return;
         }
+        
         ui.showLoading(true);
-        await setupFirestoreListeners();
-        showPageWithNavUpdate('appPage'); 
-        ui.showLoading(false);
+        try {
+            // Используем currentState для дальнейших операций
+            await setupFirestoreListeners();
+            
+            // Переходим на главную страницу (dashboard)
+            console.log('🏠 Переход на главную страницу...');
+            showPageWithNavUpdate('dashboardPage');
+        } catch (error) {
+            console.error('❌ Ошибка при переходе на dashboard:', error);
+            ui.showToast("Помилка завантаження даних. Спробуйте ще раз.", "error");
+        } finally {
+            ui.showLoading(false);
+        }
     });
     ui.elements.logoutBtnFromSetup?.addEventListener('click', () => firebase.signOut(firebase.auth));
     ui.elements.logoutBtn?.addEventListener('click', () => firebase.signOut(firebase.auth));
@@ -2811,7 +3192,41 @@ function initEventListeners() {
 
     ui.elements.massSalaryPrevMonth?.addEventListener('click', () => { state.massSalaryCurrentDate.setMonth(state.massSalaryCurrentDate.getMonth() - 1); initMassSalaryPage(); });
     ui.elements.massSalaryNextMonth?.addEventListener('click', () => { state.massSalaryCurrentDate.setMonth(state.massSalaryCurrentDate.getMonth() + 1); initMassSalaryPage(); });
-    ui.elements.massSalaryDepartmentFilter?.addEventListener('change', () => { ui.elements.massSalaryTableContainer.innerHTML = ''; ui.elements.massSalaryFooterActions.classList.add('hidden'); }); 
+    ui.elements.massSalaryDepartmentFilter?.addEventListener('change', () => { ui.elements.massSalaryTableContainer.innerHTML = ''; ui.elements.massSalaryFooterActions.classList.add('hidden'); });
+    
+    // Гамбургер меню
+    const hamburgerBtn = document.getElementById('hamburgerMenuBtn');
+    const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+    const sidebarMenu = document.getElementById('sidebarMenu');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (hamburgerBtn) {
+        hamburgerBtn.addEventListener('click', openSidebarMenu);
+    }
+    
+    if (closeSidebarBtn) {
+        closeSidebarBtn.addEventListener('click', closeSidebarMenu);
+    }
+    
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', closeSidebarMenu);
+    }
+    
+    // Закриття меню по Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeSidebarMenu();
+        }
+    });
+    
+    // Оновлюємо навігаційні кнопки в боковому меню
+    document.querySelectorAll('#sidebarMenu [data-target]').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const targetPage = e.target.dataset.target;
+            showPageWithNavUpdate(targetPage);
+            closeSidebarMenu();
+        });
+    }); 
     ui.elements.generateMassSalaryTableBtn?.addEventListener('click', generateMassSalaryView);
     ui.elements.calculateAllSalariesBtn?.addEventListener('click', calculateAllSalaries);
     ui.elements.exportAllSalariesBtn?.addEventListener('click', exportAllSalaries);
@@ -3053,10 +3468,49 @@ function tryAutoSelectCompanyAndPage() {
         // Викликаємо вибір компанії і після завантаження — перехід на вкладку
         selectCompany(parsedState.currentCompanyId, parsedState.currentCompanyName).then(async () => {
             await setupFirestoreListeners();
+            
+            // Определяем доступную страницу
+            let targetPage = 'setupPage';
+            
             if (parsedState.lastPageId) {
-                showPageWithNavUpdate(parsedState.lastPageId);
+                // Проверяем, доступна ли сохраненная страница
+                const pagePermissions = {
+                    'appPage': 'timesheet_view',
+                    'massSalaryPage': 'massSalary_view_page',
+                    'salaryPage': 'kpiIndividual_view_page',
+                    'reportsPage': 'reports_view_page',
+                    'vacationsPage': 'vacations_view_page',
+                    'competenciesPage': 'competencies_view_page',
+                    'forecastingPage': 'forecasting_view_page',
+                    'salesAssistantPage': null // Проверяется отдельно
+                };
+                
+                const requiredPermission = pagePermissions[parsedState.lastPageId];
+                if (requiredPermission && hasPermission(requiredPermission)) {
+                    targetPage = parsedState.lastPageId;
+                } else if (parsedState.lastPageId === 'salesAssistantPage' && 
+                    (hasPermission('sales_manage') || hasPermission('alerts_view_page') || hasPermission('department_dashboard_view') || 
+                     hasPermission('focus_view') || hasPermission('debts_view_page') || hasPermission('planfact_view_page') || 
+                     hasPermission('manager_calendar_view_page') || hasPermission('workload_view'))) {
+                    targetPage = parsedState.lastPageId;
+                }
+            }
+            
+            // Если сохраненная страница недоступна, переходим на dashboard
+            if (targetPage === 'setupPage') {
+                console.log('🏠 Переход на главную страницу для автовхода...');
+                targetPage = 'dashboardPage';
+            }
+            
+            console.log('🎯 Переход на страницу:', targetPage);
+            
+            // Проверяем, не пытаемся ли мы перейти на setupPage, если компания уже выбрана
+            if (targetPage === 'setupPage' && state.currentCompanyId) {
+                console.log('⚠️ Попытка перейти на setupPage при выбранной компании, показываем dashboardPage');
+                showPageWithNavUpdate('dashboardPage');
             } else {
-                showPageWithNavUpdate('appPage');
+                console.log('🎯 Переход на страницу:', targetPage);
+                showPageWithNavUpdate(targetPage);
             }
         });
     }
@@ -3159,30 +3613,55 @@ if (document.getElementById('reportsPage')) {
 // ... існуючий код ...
 
 // === ИНИЦИАЛИЗАЦИЯ SALES ASSISTANT PAGE ===
-document.addEventListener('DOMContentLoaded', () => {
-  const container = document.getElementById('salesAssistantPage');
-  if (container && typeof initSalesAssistantPage === 'function') {
-    initSalesAssistantPage(container);
-  }
-});
+// Удаляем автоматическую инициализацию - она должна происходить только при переходе на страницу
 
 // --- Універсальна функція для завантаження справочника "код клієнта — менеджер" ---
 export async function loadClientManagerDirectory() {
   if (window._clientManagerDirectory) return window._clientManagerDirectory;
   const res = await fetch('https://fastapi.lookfort.com/nomenclature.analysis?mode=company_url');
   const arr = await res.json();
-  // Формуємо об'єкт: { [код клієнта]: { manager, link } }
+  // Формуємо об'єкт: { [код клієнта]: { manager, link, name } }
   const directory = {};
   arr.forEach(item => {
     const code = item['Клиент.Код'] || item['Клієнт.Код'];
     if (code) {
       directory[code] = {
         manager: item['Менеджер'],
-        link: item['посилання']
+        link: item['посилання'],
+        name: item['Клиент.Название'] || code
       };
     }
   });
   window._clientManagerDirectory = directory;
   return directory;
+}
+
+// Функції для роботи з боковим меню
+function openSidebarMenu() {
+    const sidebarMenu = document.getElementById('sidebarMenu');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (sidebarMenu) {
+        sidebarMenu.classList.remove('-translate-x-full');
+        sidebarMenu.classList.add('translate-x-0');
+    }
+    
+    if (sidebarOverlay) {
+        sidebarOverlay.classList.remove('hidden');
+    }
+}
+
+function closeSidebarMenu() {
+    const sidebarMenu = document.getElementById('sidebarMenu');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (sidebarMenu) {
+        sidebarMenu.classList.remove('translate-x-0');
+        sidebarMenu.classList.add('-translate-x-full');
+    }
+    
+    if (sidebarOverlay) {
+        sidebarOverlay.classList.add('hidden');
+    }
 }
 

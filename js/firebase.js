@@ -25,7 +25,8 @@ import {
     deleteField, 
     deleteDoc,
     collectionGroup,
-    documentId // Імпортуємо documentId
+    documentId, // Імпортуємо documentId
+    serverTimestamp // Додаю serverTimestamp для модуля дебіторки
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import {
     getStorage,
@@ -78,6 +79,7 @@ export {
     deleteDoc,
     collectionGroup,
     documentId, // Додано documentId для експорту
+    serverTimestamp, // Додано serverTimestamp для експорту
 
     // Функції Firebase Storage
     storageRef,

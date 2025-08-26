@@ -1,884 +1,1145 @@
-// planFact.js - Модуль план-факт
+// planFact.js - Головний модуль План-Факт з інтеграцією нових сервісів
+
 import * as firebase from './firebase.js';
+import { renderDashboardTab } from './planFact/dashboard.js';
+import { renderConstructorTab } from './planFact/constructor.js';
+import { renderFocusManagerTab } from './planFact/focusManager.js';
+import { renderMassAssignmentTab } from './planFact/massAssignment.js';
+import { renderGoalsTab } from './planFact/goals.js';
 
-let plansData = [];
-let salesData = [];
-let managersData = [];
-let currentActiveTab = 'overview';
+// Імпортуємо нові модулі
+import { 
+    getState, 
+    updateState, 
+    subscribe, 
+    setCurrentTab, 
+    setLoading,
+    updateApiCache,
+    clearApiCache,
+    canPerformOperation,
+    lockOperation,
+    unlockOperation
+} from './planFact/state.js';
 
-// Демо данные планов
-const DEMO_PLANS_DATA = [
-    {
-        id: "plan-001",
-        managerId: "mgr-001",
-        managerName: "Іванов Іван",
-        department: "Відділ продажу",
-        planName: "План продажу на грудень 2024",
-        period: "2024-12",
-        type: "mixed", // revenue, quantity, mixed
-        status: "active",
-        targets: [
-            {
-                id: "target-001",
-                name: "Загальна виручка",
-                type: "revenue",
-                target: 500000,
-                current: 320000,
-                products: [], // Все товары
-                deadline: "2024-12-31"
-            },
-            {
-                id: "target-002", 
-                name: "Продажі стаканів",
-                type: "quantity",
-                target: 1000,
-                current: 650,
-                products: ["Стакан 360мл", "Стакан 500мл"],
-                deadline: "2024-12-31"
-            },
-            {
-                id: "target-003",
-                name: "Нові клієнти",
-                type: "quantity",
-                target: 20,
-                current: 12,
-                products: [],
-                deadline: "2024-12-31"
-            }
-        ],
-        createdAt: "2024-12-01",
-        createdBy: "user-001"
-    },
-    {
-        id: "plan-002",
-        managerId: "mgr-002", 
-        managerName: "Петров Петро",
-        department: "Відділ продажу",
-        planName: "План на січень 2025",
-        period: "2025-01",
-        type: "revenue",
-        status: "active",
-        targets: [
-            {
-                id: "target-004",
-                name: "Виручка від оптових клієнтів",
-                type: "revenue",
-                target: 300000,
-                current: 45000,
-                products: [],
-                deadline: "2025-01-31"
-            }
-        ],
-        createdAt: "2024-12-15",
-        createdBy: "user-002"
-    },
-    {
-        id: "plan-003",
-        managerId: "mgr-003", 
-        managerName: "Сидоров Сидор",
-        department: "Оптовий відділ",
-        planName: "Квартальний план Q1 2025",
-        period: "2025-Q1",
-        type: "mixed",
-        status: "draft",
-        targets: [
-            {
-                id: "target-005",
-                name: "Оптовий оборот",
-                type: "revenue",
-                target: 1500000,
-                current: 0,
-                products: [],
-                deadline: "2025-03-31"
-            },
-            {
-                id: "target-006",
-                name: "Кількість угод",
-                type: "quantity",
-                target: 150,
-                current: 0,
-                products: [],
-                deadline: "2025-03-31"
-            }
-        ],
-        createdAt: "2024-12-20",
-        createdBy: "user-003"
+import { 
+    startBackgroundService, 
+    stopBackgroundService, 
+    getServiceStatus,
+    setupStateSubscription 
+} from './planFact/backgroundService.js';
+
+// === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
+// Удаляем глобальные переменные - теперь используем state.js
+// let planFactData = { ... };
+// window.planFactData = planFactData;
+
+let planFactInited = false;
+
+// === ГЛОБАЛЬНІ ФУНКЦІЇ ===
+window.closeModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.remove();
     }
-];
-
-// Демо данные продаж для план-факт
-const DEMO_SALES_DATA = [
-    { date: "2024-12-01", managerId: "mgr-001", manager: "Іванов Іван", product: "Стакан 360мл", quantity: 50, revenue: 15000 },
-    { date: "2024-12-02", managerId: "mgr-001", manager: "Іванов Іван", product: "Стакан 500мл", quantity: 30, revenue: 12000 },
-    { date: "2024-12-03", managerId: "mgr-001", manager: "Іванов Іван", product: "Кришка", quantity: 100, revenue: 8000 },
-    { date: "2024-12-05", managerId: "mgr-001", manager: "Іванов Іван", product: "Стакан 360мл", quantity: 75, revenue: 22500 },
-    { date: "2024-12-10", managerId: "mgr-001", manager: "Іванов Іван", product: "Інший товар", quantity: 20, revenue: 45000 },
-    { date: "2024-12-15", managerId: "mgr-001", manager: "Іванов Іван", product: "Стакан 500мл", quantity: 45, revenue: 18000 },
-    { date: "2025-01-02", managerId: "mgr-002", manager: "Петров Петро", product: "Товар А", quantity: 10, revenue: 25000 },
-    { date: "2025-01-05", managerId: "mgr-002", manager: "Петров Петро", product: "Товар Б", quantity: 15, revenue: 20000 }
-];
+};
 
 /**
- * Главная функция инициализации модуля план-факт
+ * Показ уведомлений (toast)
  */
-export function initPlanFactModule(container) {
-    console.log('initPlanFactModule called', container);
-    if (!container) return;
-    
-    // Проверяем права доступа
-    if (!window.hasPermission('planfact_view_page')) {
-        container.innerHTML = `
-            <div class="bg-red-900 rounded-xl shadow-lg p-6 text-center">
-                <h2 class="text-2xl font-bold text-white mb-4">Доступ заборонено</h2>
-                <p class="text-red-200">У вас немає прав для перегляду модуля План-Факт.</p>
-                <p class="text-red-300 text-sm mt-2">Зверніться до адміністратора для надання доступу.</p>
-            </div>
-        `;
+function showToast(message, type = 'info') {
+    // Проверяем что мы не в бесконечной рекурсии
+    if (showToast._isProcessing) {
+        console.warn('⚠️ Предотвращена рекурсия в showToast');
         return;
     }
     
-    container.innerHTML = `
-        <div class="bg-gray-800 rounded-xl shadow-lg p-6">
-            <div class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 class="text-3xl md:text-4xl font-bold text-white">План-Факт</h1>
-                    <p class="mt-2 text-gray-400">Планування та контроль виконання цілей</p>
-                </div>
-                <div class="flex gap-2">
-                    ${window.hasPermission('planfact_create_plans') ? `
-                        <button onclick="showCreatePlanModal()" 
-                                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
-                            + Створити план
-                        </button>
-                    ` : ''}
-                    <button onclick="refreshPlanFactData()" 
-                            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                        🔄 Оновити
-                    </button>
-                </div>
-            </div>
-            <div id="planfact-tabs" class="mb-4"></div>
-            <div id="planfact-content" class="mb-4"></div>
-        </div>
-    `;
-
-    loadPlanFactData();
-}
-
-/**
- * Загрузка данных план-факт
- */
-async function loadPlanFactData() {
+    // Устанавливаем флаг обработки
+    showToast._isProcessing = true;
+    
     try {
-        showLoadingState();
-        
-        // Демо данные
-        plansData = DEMO_PLANS_DATA;
-        salesData = DEMO_SALES_DATA;
-        
-        // Загрузка менеджеров из Firebase
-        const companyId = window.state?.currentCompanyId;
-        if (companyId) {
-            const employeesSnap = await firebase.getDocs(
-                firebase.collection(firebase.db, `companies/${companyId}/employees`)
-            );
-            managersData = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        }
-        
-        hideLoadingState();
-        renderPlanFactTabs();
-        
-        // Показываем активную вкладку
-        if (currentActiveTab === 'overview') {
-            renderPlansOverview();
-        } else {
-            renderPlansDashboard();
-        }
-        
-    } catch (error) {
-        console.error('Помилка завантаження план-факт:', error);
-        showErrorState('Помилка завантаження даних');
-    }
-}
-
-/**
- * Показать состояние загрузки
- */
-function showLoadingState() {
-    const contentContainer = document.getElementById('planfact-content');
-    if (!contentContainer) return;
-    
-    contentContainer.innerHTML = `
-        <div class="text-center p-8">
-            <div class="loader mx-auto mb-4"></div>
-            <p class="text-gray-300">Завантаження даних план-факт...</p>
-        </div>
-    `;
-}
-
-/**
- * Скрыть состояние загрузки
- */
-function hideLoadingState() {
-    // Состояние будет перезаписано в render функциях
-}
-
-/**
- * Показать состояние ошибки
- */
-function showErrorState(message) {
-    const contentContainer = document.getElementById('planfact-content');
-    if (!contentContainer) return;
-    
-    contentContainer.innerHTML = `
-        <div class="text-center p-8 bg-red-900 rounded-lg">
-            <p class="text-red-200 text-lg">${message}</p>
-            <button onclick="loadPlanFactData()" 
-                    class="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
-                Спробувати знову
-            </button>
-        </div>
-    `;
-}
-
-/**
- * Рендеринг вкладок
- */
-function renderPlanFactTabs() {
-    const tabsContainer = document.getElementById('planfact-tabs');
-    if (!tabsContainer) return;
-    
-    tabsContainer.innerHTML = `
-        <div class="flex space-x-1 bg-gray-700 rounded-lg p-1">
-            <button onclick="switchPlanFactTab('overview')" 
-                    id="tab-overview"
-                    class="tab-button px-4 py-2 rounded-md text-sm font-medium transition-colors ${currentActiveTab === 'overview' ? 'bg-white text-gray-900' : 'text-gray-300 hover:text-white'}">
-                Огляд планів
-            </button>
-            <button onclick="switchPlanFactTab('dashboard')" 
-                    id="tab-dashboard"
-                    class="tab-button px-4 py-2 rounded-md text-sm font-medium transition-colors ${currentActiveTab === 'dashboard' ? 'bg-white text-gray-900' : 'text-gray-300 hover:text-white'}">
-                Дашборд виконання
-            </button>
-        </div>
-    `;
-}
-
-/**
- * Переключение вкладок
- */
-window.switchPlanFactTab = function(tab) {
-    currentActiveTab = tab;
-    
-    // Обновляем активную вкладку
-    document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.classList.remove('bg-white', 'text-gray-900');
-        btn.classList.add('text-gray-300', 'hover:text-white');
-    });
-    
-    const activeTab = document.getElementById(`tab-${tab}`);
-    if (activeTab) {
-        activeTab.classList.add('bg-white', 'text-gray-900');
-        activeTab.classList.remove('text-gray-300', 'hover:text-white');
-    }
-    
-    // Отображаем контент вкладки
-    switch(tab) {
-        case 'overview':
-            renderPlansOverview();
-            break;
-        case 'dashboard':
-            renderPlansDashboard();
-            break;
-    }
-};
-
-/**
- * Рендеринг обзора планов
- */
-function renderPlansOverview() {
-    const contentContainer = document.getElementById('planfact-content');
-    if (!contentContainer) return;
-    
-    const activePlans = plansData.filter(p => p.status === 'active');
-    const draftPlans = plansData.filter(p => p.status === 'draft');
-    const completedTargets = plansData.reduce((count, plan) => {
-        return count + plan.targets.filter(target => target.current >= target.target).length;
-    }, 0);
-    const totalTargets = plansData.reduce((count, plan) => count + plan.targets.length, 0);
-    
-    contentContainer.innerHTML = `
-        <div class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div class="bg-blue-600 rounded-lg p-4">
-                    <div class="text-2xl font-bold text-white">${activePlans.length}</div>
-                    <div class="text-sm text-blue-200">Активних планів</div>
-                </div>
-                <div class="bg-yellow-600 rounded-lg p-4">
-                    <div class="text-2xl font-bold text-white">${draftPlans.length}</div>
-                    <div class="text-sm text-yellow-200">Чернеток</div>
-                </div>
-                <div class="bg-green-600 rounded-lg p-4">
-                    <div class="text-2xl font-bold text-white">${completedTargets}</div>
-                    <div class="text-sm text-green-200">Виконаних цілей</div>
-                </div>
-                <div class="bg-purple-600 rounded-lg p-4">
-                    <div class="text-2xl font-bold text-white">${getAvgCompletion()}%</div>
-                    <div class="text-sm text-purple-200">Середнє виконання</div>
-                </div>
-                <div class="bg-orange-600 rounded-lg p-4">
-                    <div class="text-2xl font-bold text-white">${formatCurrency(getTotalPlanRevenue())}</div>
-                    <div class="text-sm text-orange-200">Загальний план</div>
-                </div>
-            </div>
-            
-            <div class="bg-gray-700 rounded-lg overflow-hidden">
-                <table class="w-full">
-                    <thead class="bg-gray-800">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-white">План</th>
-                            <th class="px-4 py-3 text-left text-white">Менеджер</th>
-                            <th class="px-4 py-3 text-center text-white">Період</th>
-                            <th class="px-4 py-3 text-center text-white">Цілей</th>
-                            <th class="px-4 py-3 text-center text-white">Виконання</th>
-                            <th class="px-4 py-3 text-center text-white">Статус</th>
-                            <th class="px-4 py-3 text-center text-white">Дії</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${plansData.map(plan => {
-                            const completion = calculatePlanCompletion(plan);
-                            return `
-                                <tr class="border-b border-gray-600 hover:bg-gray-600">
-                                    <td class="px-4 py-3 text-white">
-                                        <div class="font-medium">${plan.planName}</div>
-                                        <div class="text-sm text-gray-400">${plan.type === 'revenue' ? 'Грошовий' : plan.type === 'quantity' ? 'Кількісний' : 'Змішаний'}</div>
-                                    </td>
-                                    <td class="px-4 py-3 text-gray-200">
-                                        <div>${plan.managerName}</div>
-                                        <div class="text-sm text-gray-400">${plan.department}</div>
-                                    </td>
-                                    <td class="px-4 py-3 text-center text-gray-200">${plan.period}</td>
-                                    <td class="px-4 py-3 text-center text-gray-200">${plan.targets.length}</td>
-                                    <td class="px-4 py-3 text-center">
-                                        <div class="w-full bg-gray-600 rounded-full h-2 mb-1">
-                                            <div class="bg-green-500 h-2 rounded-full" style="width: ${completion}%"></div>
-                                        </div>
-                                        <span class="text-sm text-gray-300">${completion}%</span>
-                                    </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <span class="px-2 py-1 rounded-full text-xs ${
-                                            plan.status === 'active' ? 'bg-green-600 text-white' : 
-                                            plan.status === 'draft' ? 'bg-yellow-600 text-white' :
-                                            'bg-gray-600 text-white'
-                                        }">
-                                            ${plan.status === 'active' ? 'Активний' : plan.status === 'draft' ? 'Чернетка' : 'Завершений'}
-                                        </span>
-                                    </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <button onclick="showPlanDetails('${plan.id}')" 
-                                                class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm mr-1">
-                                            Деталі
-                                        </button>
-                                        <button onclick="editPlan('${plan.id}')" 
-                                                class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm mr-1">
-                                            Редагувати
-                                        </button>
-                                        ${plan.status === 'draft' ? 
-                                            `<button onclick="activatePlan('${plan.id}')" 
-                                                     class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
-                                                Активувати
-                                            </button>` : ''
-                                        }
-                                    </td>
-                                </tr>
-                            `;
-                        }).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Рендеринг дашборда выполнения
- */
-function renderPlansDashboard() {
-    const contentContainer = document.getElementById('planfact-content');
-    if (!contentContainer) return;
-    
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const activePlans = plansData.filter(plan => plan.status === 'active');
-    
-    contentContainer.innerHTML = `
-        <div class="space-y-6">
-            <div class="bg-gray-700 rounded-lg p-4">
-                <h2 class="text-xl font-bold text-white mb-4">Дашборд виконання планів</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    ${activePlans.map(plan => {
-                        const completion = calculatePlanCompletion(plan);
-                        return `
-                            <div class="bg-gray-800 rounded-lg p-4">
-                                <div class="flex justify-between items-start mb-3">
-                                    <div>
-                                        <h3 class="font-bold text-white">${plan.managerName}</h3>
-                                        <div class="text-sm text-gray-400">${plan.planName}</div>
-                                        <div class="text-xs text-gray-500">${plan.period}</div>
-                                    </div>
-                                    <div class="text-right">
-                                        <div class="text-lg font-bold text-white">${completion}%</div>
-                                        <div class="text-xs text-gray-400">виконано</div>
-                                    </div>
-                                </div>
-                                
-                                ${plan.targets.map(target => {
-                                    const targetCompletion = (target.current / target.target) * 100;
-                                    const targetForecast = calculateTargetForecast(target, plan.period);
-                                    const isOnTrack = targetForecast >= target.target;
-                                    return `
-                                        <div class="mb-3 p-3 bg-gray-700 rounded">
-                                            <div class="flex justify-between items-center mb-1">
-                                                <span class="text-sm text-white">${target.name}</span>
-                                                <span class="text-xs px-2 py-1 rounded ${target.type === 'revenue' ? 'bg-green-600' : 'bg-blue-600'} text-white">
-                                                    ${target.type === 'revenue' ? 'UAH' : 'шт'}
-                                                </span>
-                                            </div>
-                                            <div class="w-full bg-gray-600 rounded-full h-2 mb-1">
-                                                <div class="bg-blue-500 h-2 rounded-full" style="width: ${Math.min(targetCompletion, 100)}%"></div>
-                                            </div>
-                                            <div class="flex justify-between text-xs text-gray-300 mb-1">
-                                                <span>${target.type === 'revenue' ? formatCurrency(target.current) : target.current} / ${target.type === 'revenue' ? formatCurrency(target.target) : target.target}</span>
-                                                <span>${targetCompletion.toFixed(1)}%</span>
-                                            </div>
-                                            <div class="flex justify-between items-center text-xs">
-                                                <span class="text-gray-400">Прогноз:</span>
-                                                <span class="font-medium ${isOnTrack ? 'text-green-400' : 'text-red-400'}">
-                                                    ${target.type === 'revenue' ? formatCurrency(targetForecast) : targetForecast}
-                                                    ${isOnTrack ? '✓' : '⚠️'}
-                                                </span>
-                                            </div>
-                                            ${target.products.length > 0 ? `
-                                                <div class="mt-1 text-xs text-gray-500">
-                                                    Товари: ${target.products.slice(0, 2).join(', ')}${target.products.length > 2 ? '...' : ''}
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-            
-            <!-- Графік прогресу -->
-            <div class="bg-gray-700 rounded-lg p-4">
-                <h3 class="text-lg font-bold text-white mb-4">Динаміка виконання планів</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    ${renderProgressCharts()}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Рендеринг графиков прогресса
- */
-function renderProgressCharts() {
-    const activeManagers = [...new Set(plansData.filter(p => p.status === 'active').map(p => p.managerName))];
-    
-    return activeManagers.map(manager => {
-        const managerPlans = plansData.filter(p => p.managerName === manager && p.status === 'active');
-        const avgCompletion = managerPlans.reduce((sum, plan) => sum + calculatePlanCompletion(plan), 0) / (managerPlans.length || 1);
-        
-        return `
-            <div class="bg-gray-800 rounded-lg p-4">
-                <h4 class="font-bold text-white mb-2">${manager}</h4>
-                <div class="space-y-2">
-                    ${managerPlans.map(plan => {
-                        const completion = calculatePlanCompletion(plan);
-                        return `
-                            <div>
-                                <div class="flex justify-between text-sm text-gray-300 mb-1">
-                                    <span>${plan.planName}</span>
-                                    <span>${completion}%</span>
-                                </div>
-                                <div class="w-full bg-gray-600 rounded-full h-1">
-                                    <div class="bg-gradient-to-r from-blue-500 to-green-500 h-1 rounded-full" style="width: ${completion}%"></div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
-                    <div class="mt-3 pt-2 border-t border-gray-600">
-                        <div class="flex justify-between text-sm font-medium">
-                            <span class="text-white">Середнє:</span>
-                            <span class="text-white">${Math.round(avgCompletion)}%</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-/**
- * Показать модальное окно создания плана
- */
-window.showCreatePlanModal = function() {
-    // Проверяем права доступа
-    if (!window.hasPermission || !window.hasPermission('planfact_create_plans')) {
-        alert('У вас немає прав для створення планів');
-        return;
-    }
-    
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60';
-    modal.innerHTML = `
-        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold text-white">Створення нового плану</h2>
-                <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-            </div>
-            
-            <form id="create-plan-form" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-300 mb-1">Назва плану</label>
-                        <input type="text" id="plan-name" class="w-full bg-gray-700 text-white rounded border border-gray-600 p-2" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-300 mb-1">Менеджер</label>
-                        <select id="plan-manager" class="w-full bg-gray-700 text-white rounded border border-gray-600 p-2" required>
-                            <option value="">Оберіть менеджера</option>
-                            ${managersData.map(mgr => `<option value="${mgr.id}" data-name="${mgr.name}">${mgr.name}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-300 mb-1">Період</label>
-                        <input type="month" id="plan-period" class="w-full bg-gray-700 text-white rounded border border-gray-600 p-2" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-300 mb-1">Тип плану</label>
-                        <select id="plan-type" class="w-full bg-gray-700 text-white rounded border border-gray-600 p-2" required>
-                            <option value="revenue">Грошовий</option>
-                            <option value="quantity">Кількісний</option>
-                            <option value="mixed">Змішаний</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-300 mb-1">Статус</label>
-                        <select id="plan-status" class="w-full bg-gray-700 text-white rounded border border-gray-600 p-2">
-                            <option value="draft">Чернетка</option>
-                            <option value="active">Активний</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div>
-                    <h3 class="text-lg font-bold text-white mb-2">Цілі плану</h3>
-                    <div id="plan-targets" class="space-y-3">
-                        <div class="target-item bg-gray-700 p-4 rounded border">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                                <input type="text" placeholder="Назва цілі" class="target-name bg-gray-600 text-white rounded border border-gray-500 p-2">
-                                <select class="target-type bg-gray-600 text-white rounded border border-gray-500 p-2">
-                                    <option value="revenue">Виручка (UAH)</option>
-                                    <option value="quantity">Кількість (шт)</option>
-                                </select>
-                                <input type="number" placeholder="Цільове значення" class="target-value bg-gray-600 text-white rounded border border-gray-500 p-2">
-                            </div>
-                            <textarea placeholder="Товари/категорії (по одному на рядок, залиште пустим для всіх товарів)" 
-                                      class="target-products w-full bg-gray-600 text-white rounded border border-gray-500 p-2" 
-                                      rows="2"></textarea>
-                        </div>
-                    </div>
-                    <button type="button" onclick="addPlanTarget()" class="mt-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700">
-                        + Додати ціль
-                    </button>
-                </div>
-                
-                <div class="flex justify-end gap-4 mt-6">
-                    <button type="button" onclick="this.closest('.fixed').remove()" 
-                            class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
-                        Скасувати
-                    </button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                        Створити план
-                    </button>
-                </div>
-            </form>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Обработчик формы
-    document.getElementById('create-plan-form').onsubmit = function(e) {
-        e.preventDefault();
-        savePlan();
-    };
-    
-    // Устанавливаем текущий месяц по умолчанию
-    document.getElementById('plan-period').value = new Date().toISOString().slice(0, 7);
-};
-
-/**
- * Добавить цель к плану
- */
-window.addPlanTarget = function() {
-    const targetsContainer = document.getElementById('plan-targets');
-    const targetItem = document.createElement('div');
-    targetItem.className = 'target-item bg-gray-700 p-4 rounded border';
-    targetItem.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-            <input type="text" placeholder="Назва цілі" class="target-name bg-gray-600 text-white rounded border border-gray-500 p-2">
-            <select class="target-type bg-gray-600 text-white rounded border border-gray-500 p-2">
-                <option value="revenue">Виручка (UAH)</option>
-                <option value="quantity">Кількість (шт)</option>
-            </select>
-            <input type="number" placeholder="Цільове значення" class="target-value bg-gray-600 text-white rounded border border-gray-500 p-2">
-        </div>
-        <textarea placeholder="Товари/категорії (по одному на рядок, залиште пустим для всіх товарів)" 
-                  class="target-products w-full bg-gray-600 text-white rounded border border-gray-500 p-2 mb-2" 
-                  rows="2"></textarea>
-        <button type="button" onclick="this.closest('.target-item').remove()" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm">
-            Видалити ціль
-        </button>
-    `;
-    targetsContainer.appendChild(targetItem);
-};
-
-/**
- * Сохранить план
- */
-async function savePlan() {
-    try {
-        const formData = {
-            planName: document.getElementById('plan-name').value,
-            managerId: document.getElementById('plan-manager').value,
-            managerName: document.querySelector('#plan-manager option:checked')?.getAttribute('data-name') || '',
-            period: document.getElementById('plan-period').value,
-            type: document.getElementById('plan-type').value,
-            status: document.getElementById('plan-status').value
-        };
-        
-        const targets = Array.from(document.querySelectorAll('.target-item')).map((item, index) => ({
-            id: `target-${Date.now()}-${index}`,
-            name: item.querySelector('.target-name').value,
-            type: item.querySelector('.target-type').value,
-            target: parseFloat(item.querySelector('.target-value').value) || 0,
-            products: item.querySelector('.target-products').value.split('\n').filter(p => p.trim()),
-            current: 0,
-            deadline: `${formData.period}-31`
-        }));
-        
-        if (!formData.planName || !formData.managerId || targets.length === 0) {
-            alert('Будь ласка, заповніть всі обов\'язкові поля та додайте хоча б одну ціль');
+        // Если существует глобальная функция toast из другого модуля, используем её
+        if (typeof window.showGlobalToast === 'function') {
+            window.showGlobalToast(message, type);
             return;
         }
         
-        const newPlan = {
-            id: `plan-${Date.now()}`,
-            ...formData,
-            targets,
-            createdAt: new Date().toISOString(),
-            createdBy: window.state?.currentUserId || 'demo-user'
-        };
+        // Иначе создаем простое уведомление
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 z-[1000] px-4 py-3 rounded-lg shadow-lg text-white transition-all duration-300 ${
+            type === 'success' ? 'bg-green-600' :
+            type === 'error' ? 'bg-red-600' :
+            type === 'warning' ? 'bg-yellow-600' :
+            'bg-blue-600'
+        }`;
+        toast.textContent = message;
+        toast.style.transform = 'translateX(100%)';
         
-        // Добавляем план в данные (в будущем - сохранение в Firebase)
-        plansData.push(newPlan);
+        document.body.appendChild(toast);
         
-        alert('План створено!');
-        document.querySelector('.fixed').remove();
+        // Анимация появления
+        setTimeout(() => {
+            toast.style.transform = 'translateX(0)';
+        }, 10);
         
-        // Обновляем отображение
-        if (currentActiveTab === 'overview') {
-            renderPlansOverview();
-        } else {
-            renderPlansDashboard();
-        }
+        // Удаляем через 3 секунды
+        setTimeout(() => {
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
         
     } catch (error) {
-        console.error('Помилка збереження плану:', error);
-        alert('Помилка створення плану');
+        console.error('❌ Помилка відображення toast:', error);
+    } finally {
+        // Снимаем флаг обработки
+        showToast._isProcessing = false;
+    }
+}
+
+// Экспортируем функцию showToast БЕЗ проверки на существование
+if (!window.showToast) {
+    window.showToast = showToast;
+}
+
+/**
+ * Глобальная функция закрытия модальных окон
+ */
+window.closeModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        // Добавляем анимацию закрытия
+        modal.style.opacity = '0';
+        setTimeout(() => {
+            modal.remove();
+        }, 200);
+    }
+};
+
+console.log('📋 Модуль План-Факт завантажено');
+
+// === ГЛОБАЛЬНА ФУНКЦІЯ ЗАВАНТАЖЕННЯ ДЕМО ДАНИХ ===
+window.loadDemoData = function() {
+    if (confirm('Завантажити демо дані для тестування модуля План-Факт? Ці дані будуть використані тільки для ознайомлення з функціоналом.')) {
+        console.log('🧪 Завантаження демо даних...');
+        
+        // Завантажуємо демо дані
+        const demoData = {
+            planTemplates: getTestPlanTemplates(),
+            focusTypes: getTestFocusTypes(),
+            goals: getTestGoals(),
+            departments: [
+                { id: 'dept-1', name: 'КАВ\'ЯРНЯ' },
+                { id: 'dept-2', name: 'ЗАКЛАДИ' },
+                { id: 'dept-3', name: 'РОЗДРІБНІ ПРОДАЖІ' },
+                { id: 'dept-4', name: 'КОРПОРАТИВНІ КЛІЄНТИ' }
+            ],
+            employees: [
+                { id: 'emp-1', name: 'Ангеліна Мудрицька', departmentId: 'dept-1' },
+                { id: 'emp-2', name: 'Олексій Петренко', departmentId: 'dept-2' },
+                { id: 'emp-3', name: 'Марія Коваленко', departmentId: 'dept-3' },
+                { id: 'emp-4', name: 'Дмитро Сидоренко', departmentId: 'dept-4' }
+            ]
+        };
+        
+        // Оновлюємо стан
+        updateState({
+            planFactData: {
+                ...demoData
+            }
+        });
+        
+        // Оновлюємо інтерфейс
+        const state = getState();
+        const currentTab = state.currentTab || 'dashboard';
+        
+        if (currentTab === 'constructor') {
+            renderConstructorTab();
+        } else if (currentTab === 'focus-manager') {
+            renderFocusManagerTab();
+        } else if (currentTab === 'goals') {
+            renderGoalsTab();
+        } else if (currentTab === 'dashboard') {
+            renderDashboardTab();
+        }
+        
+        showToast('🧪 Демо дані завантажено успішно!', 'success');
+        console.log('✅ Демо дані завантажено');
+    }
+};
+
+// === ОСНОВНАЯ ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ ===
+/**
+ * Ініціалізація модуля План-Факт з новою архітектурою
+ */
+export async function initPlanFactModule(container) {
+    console.log('🚀 Ініціалізація модуля План-Факт з новою архітектурою...');
+    
+    // Проверяем, что модуль еще не инициализирован
+    if (planFactInited) {
+        console.log('⚠️ Модуль План-Факт вже ініціалізовано, пропускаємо повторну ініціалізацію');
+        return;
+    }
+    
+    // Показуємо анимацию загрузки сразу
+    showLoadingAnimation(container);
+    
+    try {
+        // Встановлюємо стан завантаження
+        setLoading(true);
+        
+        // Завантажуємо початкові дані з прогресс-баром
+        await loadInitialDataWithProgress(container);
+        
+        // Рендеримо інтерфейс
+        renderMainInterface(container);
+        
+        // Налаштовуємо обробники подій
+        setupEventHandlers();
+        
+        // Запускаємо фонове оновлення
+        startBackgroundService();
+        
+        // Налаштовуємо підписку на зміни стану
+        setupStateSubscription();
+        
+        // Встановлюємо початкову вкладку
+        setCurrentTab('dashboard');
+        
+        // Показуємо першу вкладку (дашборд) при ініціалізації
+        setTimeout(async () => {
+            try {
+                console.log('🎨 Показуємо першу вкладку (дашборд)...');
+                await switchTab('dashboard');
+            } catch (error) {
+                console.error('❌ Помилка показу першої вкладки:', error);
+            }
+        }, 100);
+        
+        // НЕ загружаем данные дашборда здесь - они будут загружены при первом входе
+        // await loadDashboardData(); // УБИРАЕМ ЭТУ СТРОКУ
+        
+        setLoading(false);
+        
+        // Отмечаем модуль как инициализированный
+        planFactInited = true;
+        
+        console.log('✅ Модуль План-Факт успішно ініціалізовано (без попереднього завантаження даних)');
+        
+        // Принудительно запускаем первое обновление данных с задержкой
+        setTimeout(async () => {
+            try {
+                console.log('🚀 Запуск першого оновлення даних...');
+                const { forceUpdate } = await import('./planFact/backgroundService.js');
+                await forceUpdate();
+                console.log('✅ Перше оновлення даних завершено');
+            } catch (error) {
+                console.error('❌ Помилка першого оновлення даних:', error);
+            }
+        }, 2000); // Увеличиваем задержку до 2 секунд для полной готовности HTML элементов
+        
+    } catch (error) {
+        console.error('❌ Помилка ініціалізації модуля План-Факт:', error);
+        setLoading(false);
+        showErrorState(container, error.message);
+        throw error;
     }
 }
 
 /**
- * Показать детали плана
+ * Показ анимации загрузки с прогресс-баром
  */
-window.showPlanDetails = function(planId) {
-    const plan = plansData.find(p => p.id === planId);
-    if (!plan) return;
+function showLoadingAnimation(container) {
+    container.innerHTML = `
+        <div class="bg-gray-900 min-h-screen flex items-center justify-center">
+            <div class="bg-gray-800 rounded-xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <!-- Логотип и заголовок -->
+                <div class="text-center mb-8">
+                    <div class="inline-block animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mb-4"></div>
+                    <h2 class="text-2xl font-bold text-white mb-2">📊 План-Факт</h2>
+                    <p class="text-gray-400">Ініціалізація модуля...</p>
+                </div>
+                
+                <!-- Прогресс-бар -->
+                <div class="mb-6">
+                    <div class="flex justify-between text-sm text-gray-400 mb-2">
+                        <span id="loading-step">Підготовка...</span>
+                        <span id="loading-progress">0%</span>
+                    </div>
+                    <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
+                        <div id="loading-bar" class="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- Детальная информация -->
+                <div class="text-center">
+                    <p id="loading-details" class="text-sm text-gray-400">Завантаження конфігурації...</p>
+                </div>
+                
+                <!-- Анимация точек -->
+                <div class="flex justify-center mt-4">
+                    <div class="flex space-x-1">
+                        <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                        <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
+                        <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Обновление прогресса загрузки
+ */
+function updateLoadingProgress(step, progress, details) {
+    const stepElement = document.getElementById('loading-step');
+    const progressElement = document.getElementById('loading-progress');
+    const barElement = document.getElementById('loading-bar');
+    const detailsElement = document.getElementById('loading-details');
     
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60';
-    modal.innerHTML = `
-        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold text-white">Деталі плану: ${plan.planName}</h2>
-                <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div class="bg-blue-600 rounded-lg p-4">
-                    <div class="text-lg font-bold text-white">${plan.managerName}</div>
-                    <div class="text-sm text-blue-200">Менеджер</div>
-                </div>
-                <div class="bg-green-600 rounded-lg p-4">
-                    <div class="text-lg font-bold text-white">${plan.period}</div>
-                    <div class="text-sm text-green-200">Період</div>
-                </div>
-                <div class="bg-purple-600 rounded-lg p-4">
-                    <div class="text-lg font-bold text-white">${plan.targets.length}</div>
-                    <div class="text-sm text-purple-200">Цілей</div>
-                </div>
-                <div class="bg-orange-600 rounded-lg p-4">
-                    <div class="text-lg font-bold text-white">${calculatePlanCompletion(plan)}%</div>
-                    <div class="text-sm text-orange-200">Виконано</div>
-                </div>
-            </div>
-            
-            <div class="space-y-4">
-                <h3 class="text-lg font-bold text-white">Цілі плану</h3>
-                ${plan.targets.map(target => {
-                    const completion = (target.current / target.target) * 100;
-                    const forecast = calculateTargetForecast(target, plan.period);
-                    return `
-                        <div class="bg-gray-700 rounded-lg p-4">
-                            <div class="flex justify-between items-start mb-3">
-                                <div>
-                                    <h4 class="font-bold text-white">${target.name}</h4>
-                                    <div class="text-sm text-gray-400">${target.type === 'revenue' ? 'Грошова ціль' : 'Кількісна ціль'}</div>
-                                </div>
-                                <div class="text-right">
-                                    <div class="text-lg font-bold text-white">${completion.toFixed(1)}%</div>
-                                    <div class="text-sm text-gray-400">виконано</div>
-                                </div>
+    if (stepElement) stepElement.textContent = step;
+    if (progressElement) progressElement.textContent = `${progress}%`;
+    if (barElement) barElement.style.width = `${progress}%`;
+    if (detailsElement) detailsElement.textContent = details;
+}
+
+/**
+ * Завантаження початкових даних з прогресс-баром
+ */
+async function loadInitialDataWithProgress(container) {
+    console.log('📊 Завантаження початкових даних з прогресс-баром...');
+    
+    const steps = [
+        { name: 'Підготовка системи', progress: 10, details: 'Ініціалізація модулів...' },
+        { name: 'Завантаження шаблонів', progress: 25, details: 'Отримання шаблонів планів...' },
+        { name: 'Завантаження фокусів', progress: 40, details: 'Отримання типів фокусів...' },
+        { name: 'Завантаження цілей', progress: 55, details: 'Отримання тижневих цілей...' },
+        { name: 'Завантаження планів', progress: 70, details: 'Отримання активних планів...' },
+        { name: 'Завантаження співробітників', progress: 85, details: 'Отримання списку співробітників...' },
+        { name: 'Завершення', progress: 100, details: 'Фіналізація даних...' }
+    ];
+    
+    try {
+        // Шаг 1: Подготовка системы
+        updateLoadingProgress(steps[0].name, steps[0].progress, steps[0].details);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Шаг 2: Загрузка шаблонов
+        updateLoadingProgress(steps[1].name, steps[1].progress, steps[1].details);
+        const planTemplates = await loadPlanTemplatesFromFirebase();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Шаг 3: Загрузка фокусов
+        updateLoadingProgress(steps[2].name, steps[2].progress, steps[2].details);
+        const focusTypes = await loadFocusTypes();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Шаг 4: Загрузка целей
+        updateLoadingProgress(steps[3].name, steps[3].progress, steps[3].details);
+        const goals = await loadGoalsFromFirebase();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Шаг 5: Загрузка планов
+        updateLoadingProgress(steps[4].name, steps[4].progress, steps[4].details);
+        const { plans, massAssignmentHistory } = await loadPlansFromStorage();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Шаг 6: Загрузка сотрудников
+        updateLoadingProgress(steps[5].name, steps[5].progress, steps[5].details);
+        const employees = await loadEmployees();
+        const departments = await loadDepartments();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Шаг 7: Завершение
+        updateLoadingProgress(steps[6].name, steps[6].progress, steps[6].details);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Оновлюємо стан з завантаженими даними
+        updateState({
+            planFactData: {
+                planTemplates,
+                focusTypes,
+                goals,
+                plans,
+                employees,
+                departments,
+                massAssignmentHistory
+            }
+        });
+        
+        console.log('✅ Початкові дані завантажено з прогресс-баром');
+        
+    } catch (error) {
+        console.error('❌ Помилка завантаження початкових даних:', error);
+        throw error;
+    }
+}
+
+/**
+ * Рендеринг головного інтерфейсу
+ */
+function renderMainInterface(container) {
+    console.log('🎨 Рендеринг головного інтерфейсу...');
+    
+    // Создаем временный контейнер для нового интерфейса
+    const tempContainer = document.createElement('div');
+    tempContainer.innerHTML = `
+        <div class="bg-gray-900 min-h-screen">
+            <!-- Заголовок -->
+            <div class="bg-gray-800 border-b border-gray-700">
+                <div class="px-6 py-4">
+                    <div class="flex justify-between items-center">
+                        <h1 class="text-2xl font-bold text-white">📊 План-Факт</h1>
+                        <div class="flex items-center space-x-4">
+                            <div class="text-sm text-gray-400">
+                                <span id="last-update-info">Останнє оновлення: -</span>
                             </div>
-                            
-                            <div class="w-full bg-gray-600 rounded-full h-3 mb-3">
-                                <div class="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full" style="width: ${Math.min(completion, 100)}%"></div>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <div class="text-sm text-gray-400">Поточний результат</div>
-                                    <div class="text-lg font-bold text-white">
-                                        ${target.type === 'revenue' ? formatCurrency(target.current) : target.current}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="text-sm text-gray-400">Цільове значення</div>
-                                    <div class="text-lg font-bold text-white">
-                                        ${target.type === 'revenue' ? formatCurrency(target.target) : target.target}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="text-sm text-gray-400">Прогноз</div>
-                                    <div class="text-lg font-bold ${forecast >= target.target ? 'text-green-400' : 'text-red-400'}">
-                                        ${target.type === 'revenue' ? formatCurrency(forecast) : forecast}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            ${target.products.length > 0 ? `
-                                <div class="mt-3 pt-3 border-t border-gray-600">
-                                    <div class="text-sm text-gray-400 mb-1">Товари/категорії:</div>
-                                    <div class="text-sm text-gray-300">${target.products.join(', ')}</div>
-                                </div>
-                            ` : ''}
+                            <button id="background-service-toggle" 
+                                    class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-red-600">
+                                🔄 Автооновлення
+                            </button>
                         </div>
-                    `;
-                }).join('')}
+                    </div>
+                </div>
             </div>
             
-            <div class="flex justify-end gap-4 mt-6">
-                <button onclick="this.closest('.fixed').remove()" 
-                        class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
-                    Закрити
-                </button>
-                <button onclick="editPlan('${plan.id}'); this.closest('.fixed').remove();" 
-                        class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
-                    Редагувати
-                </button>
+            <!-- Навігація -->
+            <div class="bg-gray-800 border-b border-gray-700">
+                <div class="px-6 py-2">
+                    <nav class="flex space-x-8">
+                        <button data-tab="dashboard" class="tab-button active px-3 py-2 text-sm font-medium text-white border-b-2 border-blue-500">
+                            📊 Дашборд
+                        </button>
+                        <button data-tab="constructor" class="tab-button px-3 py-2 text-sm font-medium text-gray-300 hover:text-white border-b-2 border-transparent">
+                            🏗️ Конструктор планів
+                        </button>
+                        <button data-tab="focus-manager" class="tab-button px-3 py-2 text-sm font-medium text-gray-300 hover:text-white border-b-2 border-transparent">
+                            🎯 Управління фокусами
+                        </button>
+                        <button data-tab="mass-assignment" class="tab-button px-3 py-2 text-sm font-medium text-gray-300 hover:text-white border-b-2 border-transparent">
+                            👥 Масове призначення
+                        </button>
+                        <button data-tab="goals" class="tab-button px-3 py-2 text-sm font-medium text-gray-300 hover:text-white border-b-2 border-transparent">
+                            🎯 Цілі
+                        </button>
+                    </nav>
+                </div>
+            </div>
+            
+            <!-- Контент с персистентными контейнерами -->
+            <div id="plan-fact-content" class="p-6">
+                <!-- Контейнер для дашборда -->
+                <div id="dashboard-content-wrapper" class="tab-content" style="display: none;">
+                    <!-- Контент дашборда будет здесь -->
+                </div>
+                
+                <!-- Контейнер для конструктора -->
+                <div id="constructor-content-wrapper" class="tab-content" style="display: none;">
+                    <!-- Контент конструктора будет здесь -->
+                </div>
+                
+                <!-- Контейнер для управления фокусами -->
+                <div id="focus-manager-content-wrapper" class="tab-content" style="display: none;">
+                    <!-- Контент управления фокусами будет здесь -->
+                </div>
+                
+                <!-- Контейнер для массового назначения -->
+                <div id="mass-assignment-content-wrapper" class="tab-content" style="display: none;">
+                    <!-- Контент массового назначения будет здесь -->
+                </div>
+                
+                <!-- Контейнер для целей -->
+                <div id="goals-content-wrapper" class="tab-content" style="display: none;">
+                    <!-- Контент целей будет здесь -->
+                </div>
             </div>
         </div>
     `;
     
-    document.body.appendChild(modal);
-};
-
-/**
- * Редактировать план
- */
-window.editPlan = function(planId) {
-    alert(`Функція редагування плану ${planId} буде реалізована в наступних версіях`);
-};
-
-/**
- * Активировать план
- */
-window.activatePlan = function(planId) {
-    const plan = plansData.find(p => p.id === planId);
-    if (plan) {
-        plan.status = 'active';
-        renderPlansOverview();
-        alert('План активовано!');
-    }
-};
-
-/**
- * Обновление данных
- */
-window.refreshPlanFactData = function() {
-    loadPlanFactData();
-};
-
-// Вспомогательные функции
-function calculatePlanCompletion(plan) {
-    if (!plan.targets.length) return 0;
-    const avgCompletion = plan.targets.reduce((sum, target) => {
-        return sum + Math.min((target.current / target.target) * 100, 100);
-    }, 0) / plan.targets.length;
-    return Math.round(avgCompletion);
-}
-
-function calculateTargetForecast(target, period) {
-    // Простое прогнозирование на основе текущего темпа
-    const now = new Date();
-    const [year, month] = period.split('-');
-    const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
-    const currentDay = now.getDate();
+    // Плавно заменяем содержимое контейнера
+    fadeTransition(container, tempContainer.firstElementChild);
     
-    if (currentDay === 0) return target.current;
-    const dailyRate = target.current / currentDay;
-    return Math.round(dailyRate * daysInMonth);
+    // Оновлюємо інформацію про останнє оновлення
+    updateLastUpdateInfo();
 }
 
-function getAvgCompletion() {
-    if (!plansData.length) return 0;
-    const activePlans = plansData.filter(p => p.status === 'active');
-    if (!activePlans.length) return 0;
-    const totalCompletion = activePlans.reduce((sum, plan) => sum + calculatePlanCompletion(plan), 0);
-    return Math.round(totalCompletion / activePlans.length);
+/**
+ * Плавный переход между интерфейсами
+ */
+function fadeTransition(container, newContent) {
+    // Добавляем новый контент с прозрачностью 0
+    newContent.style.opacity = '0';
+    newContent.style.transition = 'opacity 0.5s ease-in-out';
+    container.appendChild(newContent);
+    
+    // Плавно показываем новый контент
+    setTimeout(() => {
+        newContent.style.opacity = '1';
+    }, 50);
+    
+    // Удаляем старый контент после завершения анимации
+    setTimeout(() => {
+        const oldContent = container.querySelector('.bg-gray-900.min-h-screen:not(:last-child)');
+        if (oldContent) {
+            oldContent.remove();
+        }
+    }, 550);
 }
 
-function getTotalPlanRevenue() {
-    return plansData.reduce((sum, plan) => {
-        return sum + plan.targets.filter(t => t.type === 'revenue').reduce((s, t) => s + t.target, 0);
-    }, 0);
+/**
+ * Налаштування обробників подій
+ */
+function setupEventHandlers() {
+    console.log('🔧 Налаштування обробників подій...');
+    
+    // Обробники вкладок
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const tabName = e.target.dataset.tab;
+            switchTab(tabName);
+        });
+    });
+    
+    // Обробник перемикача фонового сервісу
+    const toggleButton = document.getElementById('background-service-toggle');
+    if (toggleButton) {
+        toggleButton.addEventListener('click', toggleBackgroundService);
+    }
+    
+    // Оновлюємо статус кнопки
+    updateBackgroundServiceButton();
 }
 
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('uk-UA', {
-        style: 'currency',
-        currency: 'UAH',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(amount);
+/**
+ * Переключення вкладок
+ */
+async function switchTab(tabName) {
+    const operationId = `switchTab_${tabName}`;
+    console.log(`🔄 Переключення на вкладку: ${tabName}`);
+    
+    try {
+        // Проверяем, можно ли выполнить операцию
+        if (!canPerformOperation(operationId)) {
+            console.log(`⚠️ Переключення на вкладку ${tabName} заблоковано, чекаємо завершення іншої операції...`);
+            return;
+        }
+        
+        // Блокируем выполнение других операций
+        if (!lockOperation(operationId)) {
+            console.log(`⚠️ Неможливо заблокувати переключення на вкладку ${tabName}`);
+            return;
+        }
+        
+        // Проверяем текущее состояние
+        const currentState = getState();
+        if (currentState.isLoading) {
+            console.log('⚠️ Модуль вже завантажується, чекаємо завершення...');
+            unlockOperation(operationId);
+            return;
+        }
+        
+        setLoading(true);
+        setCurrentTab(tabName);
+        
+        // Оновлюємо активну вкладку в UI
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.classList.remove('active', 'text-white', 'border-blue-500');
+            button.classList.add('text-gray-300', 'border-transparent');
+        });
+        
+        const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
+        if (activeButton) {
+            activeButton.classList.add('active', 'text-white', 'border-blue-500');
+            activeButton.classList.remove('text-gray-300', 'border-transparent');
+        }
+        
+        // Получаем контейнер для активной вкладки
+        const contentWrapper = document.getElementById(`${tabName}-content-wrapper`);
+        if (!contentWrapper) {
+            console.error(`❌ Контейнер для вкладки ${tabName} не знайдено`);
+            setLoading(false);
+            unlockOperation(operationId);
+            return;
+        }
+        
+        // Скрываем все контейнеры вкладок
+        document.querySelectorAll('.tab-content').forEach(wrapper => {
+            wrapper.style.display = 'none';
+        });
+        
+        // Проверяем, был ли контент уже загружен
+        const isLoaded = contentWrapper.getAttribute('data-loaded') === 'true';
+        
+        if (!isLoaded) {
+            console.log(`📦 Контент вкладки ${tabName} ще не завантажений, завантажуємо...`);
+            
+            // Показуємо анимацию загрузки
+            contentWrapper.innerHTML = `
+                <div class="flex items-center justify-center py-12">
+                    <div class="text-center">
+                        <div class="inline-block animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent mb-4"></div>
+                        <p class="text-lg font-medium text-gray-200 mb-2">Завантаження ${getTabDisplayName(tabName)}...</p>
+                        <div class="flex justify-center space-x-1">
+                            <div class="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></div>
+                            <div class="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
+                            <div class="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Показываем контейнер
+            contentWrapper.style.display = 'block';
+            
+            // Загружаем контент вкладки
+            try {
+                switch (tabName) {
+                    case 'dashboard':
+                        await renderDashboardTab(contentWrapper);
+                        break;
+                    case 'constructor':
+                        await renderConstructorTab(contentWrapper);
+                        break;
+                    case 'focus-manager':
+                        await renderFocusManagerTab(contentWrapper);
+                        break;
+                    case 'mass-assignment':
+                        await renderMassAssignmentTab(contentWrapper);
+                        break;
+                    case 'goals':
+                        await renderGoalsTab(contentWrapper);
+                        break;
+                    default:
+                        console.warn(`⚠️ Невідома вкладка: ${tabName}`);
+                }
+                
+                // Отмечаем контент как загруженный
+                contentWrapper.setAttribute('data-loaded', 'true');
+                console.log(`✅ Контент вкладки ${tabName} завантажено успішно`);
+                
+            } catch (error) {
+                console.error(`❌ Помилка завантаження контенту вкладки ${tabName}:`, error);
+                contentWrapper.innerHTML = `
+                    <div class="bg-red-900 border border-red-700 rounded-lg p-6 text-center">
+                        <div class="text-red-400 text-6xl mb-4">⚠️</div>
+                        <h2 class="text-xl font-bold text-red-400 mb-2">Помилка завантаження</h2>
+                        <p class="text-sm text-gray-400 mb-6">${error.message}</p>
+                        <button onclick="switchTab('${tabName}')" 
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            🔄 Спробувати ще раз
+                        </button>
+                    </div>
+                `;
+            }
+        } else {
+            console.log(`✅ Контент вкладки ${tabName} вже завантажений, показуємо...`);
+            // Просто показываем уже загруженный контент
+            contentWrapper.style.display = 'block';
+        }
+        
+        setLoading(false);
+        
+        console.log(`✅ Вкладка ${tabName} успішно переключена`);
+        
+    } catch (error) {
+        console.error(`❌ Помилка переключення вкладки ${tabName}:`, error);
+        setLoading(false);
+    } finally {
+        // Разблокируем операцию
+        unlockOperation(operationId);
+    }
+}
+
+/**
+ * Получение отображаемого имени вкладки
+ */
+function getTabDisplayName(tabName) {
+    const tabNames = {
+        'dashboard': '📊 Дашборд',
+        'constructor': '🏗️ Конструктор планів',
+        'focus-manager': '🎯 Управління фокусами',
+        'mass-assignment': '👥 Масове призначення',
+        'goals': '🎯 Цілі'
+    };
+    
+    return tabNames[tabName] || tabName;
+}
+
+/**
+ * Показ анимации загрузки для вкладки
+ */
+function showTabLoadingAnimation(container, tabName) {
+    const tabNames = {
+        'dashboard': '📊 Дашборд',
+        'constructor': '🏗️ Конструктор планів',
+        'focus-manager': '🎯 Управління фокусами',
+        'mass-assignment': '👥 Масове призначення',
+        'goals': '🎯 Цілі'
+    };
+    
+    const tabNameDisplay = tabNames[tabName] || tabName;
+    
+    container.innerHTML = `
+        <div class="flex items-center justify-center py-12">
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent mb-4"></div>
+                <p class="text-lg font-medium text-gray-200 mb-2">Завантаження ${tabNameDisplay}...</p>
+                <div class="flex justify-center space-x-1">
+                    <div class="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div class="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
+                    <div class="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Завантаження даних дашборду
+ */
+async function loadDashboardData() {
+    console.log('📊 Завантаження даних дашборду...');
+    
+    try {
+        // Показуємо анимацию завантаження для дашборду
+        const contentContainer = document.getElementById('plan-fact-content');
+        if (contentContainer) {
+            showTabLoadingAnimation(contentContainer, 'dashboard');
+        }
+        
+        // Викликаємо оновлення дашборду і чекаємо завершення
+        if (typeof window.updateDashboardData === 'function') {
+            await window.updateDashboardData();
+        } else {
+            // Якщо функція не існує, чекаємо трохи для імітації завантаження
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        console.log('✅ Дані дашборду завантажено');
+        
+    } catch (error) {
+        console.error('❌ Помилка завантаження даних дашборду:', error);
+        throw error;
+    }
+}
+
+/**
+ * Перемикач фонового сервісу
+ */
+function toggleBackgroundService() {
+    const status = getServiceStatus();
+    
+    if (status.isActive) {
+        stopBackgroundService();
+    } else {
+        startBackgroundService();
+    }
+    
+    updateBackgroundServiceButton();
+}
+
+/**
+ * Оновлення кнопки фонового сервісу
+ */
+function updateBackgroundServiceButton() {
+    const button = document.getElementById('background-service-toggle');
+    if (!button) return;
+    
+    const status = getServiceStatus();
+    
+    if (status.isActive) {
+        button.textContent = '🛑 Зупинити автооновлення';
+        button.classList.remove('bg-green-600', 'hover:bg-red-600');
+        button.classList.add('bg-red-600', 'hover:bg-green-600');
+    } else {
+        button.textContent = '🔄 Автооновлення';
+        button.classList.remove('bg-red-600', 'hover:bg-green-600');
+        button.classList.add('bg-green-600', 'hover:bg-red-600');
+    }
+}
+
+/**
+ * Оновлення інформації про останнє оновлення
+ */
+function updateLastUpdateInfo() {
+    const infoElement = document.getElementById('last-update-info');
+    if (!infoElement) return;
+    
+    const status = getServiceStatus();
+    
+    if (status.lastUpdate) {
+        const lastUpdate = new Date(status.lastUpdate);
+        const now = new Date();
+        const diffMinutes = Math.floor((now - lastUpdate) / 1000 / 60);
+        
+        infoElement.textContent = `Останнє оновлення: ${diffMinutes} хв тому`;
+    } else {
+        infoElement.textContent = 'Останнє оновлення: -';
+    }
+}
+
+// === ЗАВАНТАЖЕННЯ ДАНИХ ===
+
+/**
+ * Завантаження шаблонів планів з Firebase
+ */
+async function loadPlanTemplatesFromFirebase() {
+    try {
+        const companyId = window.state?.currentCompanyId;
+        if (!companyId) {
+            console.warn('⚠️ ID компанії не знайдено, завантажуємо з localStorage');
+            
+            // Загружаем из localStorage
+            try {
+                const savedData = localStorage.getItem('planFactData');
+                if (savedData) {
+                    const parsedData = JSON.parse(savedData);
+                    const planTemplates = parsedData.planTemplates || [];
+                    console.log(`📋 Завантажено ${planTemplates.length} шаблонів з localStorage`);
+                    
+                    return planTemplates;
+                } else {
+                    return [];
+                }
+            } catch (storageError) {
+                console.error('❌ Помилка завантаження з localStorage:', storageError);
+                return [];
+            }
+            
+            // Показуємо повідомлення користувачу
+            if (window.showToast) {
+                showToast('💡 Для роботи з планами потрібно налаштувати компанію', 'info');
+            }
+            return [];
+        }
+        
+        console.log('🔥 Завантаження шаблонів планів з Firebase...');
+        
+        const templatesRef = firebase.collection(firebase.db, 'companies', companyId, 'planTemplates');
+        const snapshot = await firebase.getDocs(templatesRef);
+        
+        const planTemplates = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        
+        console.log(`📋 Завантажено ${planTemplates.length} шаблонів планів з Firebase`);
+        
+        return planTemplates;
+        
+    } catch (error) {
+        console.error('❌ Помилка завантаження шаблонів планів:', error);
+        return [];
+    }
+}
+
+/**
+ * Завантаження типів фокусних задач
+ */
+async function loadFocusTypes() {
+    try {
+        const companyId = window.state?.currentCompanyId;
+        if (!companyId) {
+            console.warn('⚠️ ID компанії не знайдено, завантажуємо типи фокусів з localStorage');
+            
+            // Загружаем из localStorage
+            try {
+                const savedData = localStorage.getItem('planFactData');
+                if (savedData) {
+                    const parsedData = JSON.parse(savedData);
+                    const focusTypes = parsedData.focusTypes || [];
+                    console.log(`🎯 Завантажено ${focusTypes.length} типів фокусів з localStorage`);
+                    
+                                        return focusTypes;
+                } else {
+                    return [];
+                }
+            } catch (storageError) {
+                console.error('❌ Помилка завантаження типів фокусів з localStorage:', storageError);
+                return [];
+            }
+            return [];
+        }
+        
+        console.log('🎯 Завантаження типів фокусних задач...');
+        
+        const focusTypesRef = firebase.collection(firebase.db, 'companies', companyId, 'focusTypes');
+        const snapshot = await firebase.getDocs(focusTypesRef);
+        
+        const focusTypes = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        
+        console.log(`🎯 Завантажено ${focusTypes.length} типів фокусних задач`);
+        
+        return focusTypes;
+        
+    } catch (error) {
+        console.error('❌ Помилка завантаження типів фокусів:', error);
+        return [];
+    }
+}
+
+// Экспортируем функцию для использования в других модулях
+window.loadFocusTypesFromFirebase = loadFocusTypes;
+
+/**
+ * Завантаження цілей з Firebase
+ */
+async function loadGoalsFromFirebase() {
+    try {
+        const companyId = window.state?.currentCompanyId;
+        if (!companyId) {
+            console.warn('⚠️ ID компанії не знайдено, завантажуємо цілі з localStorage');
+            
+            // Загружаем из localStorage
+            try {
+                const savedData = localStorage.getItem('planFactData');
+                if (savedData) {
+                    const parsedData = JSON.parse(savedData);
+                    const goals = parsedData.goals || [];
+                    console.log(`🎯 Завантажено ${goals.length} цілей з localStorage`);
+                    
+                    return goals;
+                } else {
+                    return [];
+                }
+            } catch (storageError) {
+                console.error('❌ Помилка завантаження цілей з localStorage:', storageError);
+                return [];
+            }
+            return [];
+        }
+        
+        console.log('🎯 Завантаження цілей з Firebase...');
+        
+        const goalsRef = firebase.collection(firebase.db, 'companies', companyId, 'weeklyGoals');
+        const snapshot = await firebase.getDocs(goalsRef);
+        
+        const goals = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        
+        console.log(`🎯 Завантажено ${goals.length} цілей з Firebase`);
+        
+        return goals;
+        
+    } catch (error) {
+        console.error('❌ Помилка завантаження цілей:', error);
+        return [];
+    }
+}
+
+/**
+ * Завантаження планів з Firebase або localStorage
+ */
+async function loadPlansFromStorage() {
+    try {
+        const companyId = window.state?.currentCompanyId;
+        
+        if (!companyId) {
+            console.warn('⚠️ ID компанії не знайдено, завантажуємо плани з localStorage');
+            
+            // Загружаем из localStorage
+            try {
+                const savedData = localStorage.getItem('planFactData');
+                if (savedData) {
+                    const parsedData = JSON.parse(savedData);
+                    const plans = parsedData.plans || [];
+                    const massAssignmentHistory = parsedData.massAssignmentHistory || [];
+                    console.log(`📋 Завантажено ${plans.length} планів з localStorage`);
+                    console.log(`📋 Завантажено ${massAssignmentHistory.length} записів історії з localStorage`);
+                    
+                    return { plans, massAssignmentHistory };
+                } else {
+                    return { plans: [], massAssignmentHistory: [] };
+                }
+            } catch (storageError) {
+                console.error('❌ Помилка завантаження планів з localStorage:', storageError);
+                return { plans: [], massAssignmentHistory: [] };
+            }
+            return { plans: [], massAssignmentHistory: [] };
+        }
+        
+        console.log('📋 Завантаження планів з Firebase...');
+        
+        const plansRef = firebase.collection(firebase.db, 'companies', companyId, 'plans');
+        const snapshot = await firebase.getDocs(plansRef);
+        
+        const plans = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        
+        console.log(`📋 Завантажено ${plans.length} планів з Firebase`);
+        
+        // TODO: Загрузка истории из Firebase при наличии
+        const massAssignmentHistory = [];
+        
+        return { plans, massAssignmentHistory };
+        
+    } catch (error) {
+        console.error('❌ Помилка завантаження планів:', error);
+        return { plans: [], massAssignmentHistory: [] };
+    }
+}
+
+/**
+ * Завантаження співробітників та відділів
+ */
+async function loadEmployees() {
+    try {
+        // Використовуємо дані з window.state
+        const employees = window.state?.allEmployees || [];
+        console.log(`👥 Завантажено ${employees.length} співробітників`);
+        
+        return employees;
+    } catch (error) {
+        console.error('❌ Помилка завантаження співробітників:', error);
+        return [];
+    }
+}
+
+/**
+ * Завантаження відділів
+ */
+async function loadDepartments() {
+    try {
+        // Використовуємо дані з window.state
+        const departments = window.state?.departments || [];
+        console.log(`🏢 Завантажено ${departments.length} відділів`);
+        
+        return departments;
+    } catch (error) {
+        console.error('❌ Помилка завантаження відділів:', error);
+        return [];
+    }
+}
+
+// === ТЕСТОВІ ДАНІ ===
+function getTestPlanTemplates() {
+    return [
+        {
+            id: 'template-1',
+            name: 'Шаблон для кав\'ярні',
+            departmentId: 'dept-1',
+            departmentName: 'КАВ\'ЯРНЯ',
+            monthKey: '202508',
+            revenuePlan: 2629453,
+            status: 'active',
+            createdAt: new Date(),
+            createdBy: 'demo-user',
+            
+            // Фокусні задачі
+            focusTasks: [
+                {
+                    focusTypeId: 'focus-1',
+                    focusTypeName: 'Комерційні пропозиції',
+                    focusType: 'quantity',
+                    focusUnit: 'шт'
+                },
+                {
+                    focusTypeId: 'focus-2',
+                    focusTypeName: 'Ефективні дзвінки',
+                    focusType: 'quantity',
+                    focusUnit: 'шт'
+                },
+                {
+                    focusTypeId: 'focus-3',
+                    focusTypeName: 'Середній чек',
+                    focusType: 'revenue',
+                    focusUnit: 'грн'
+                }
+            ]
+        },
+        {
+            id: 'template-2',
+            name: 'Шаблон для закладів',
+            departmentId: 'dept-2',
+            departmentName: 'ЗАКЛАДИ',
+            monthKey: '202508',
+            revenuePlan: 1500000,
+            status: 'draft',
+            createdAt: new Date(),
+            createdBy: 'demo-user',
+            
+            // Фокусні задачі
+            focusTasks: [
+                {
+                    focusTypeId: 'focus-1',
+                    focusTypeName: 'Комерційні пропозиції',
+                    focusType: 'quantity',
+                    focusUnit: 'шт'
+                },
+                {
+                    focusTypeId: 'focus-4',
+                    focusTypeName: 'Нові клієнти',
+                    focusType: 'quantity',
+                    focusUnit: 'шт'
+                }
+            ]
+        }
+    ];
+}
+
+function getTestGoals() {
+    return [
+        {
+            id: 'goal-1',
+            name: 'Комерційні пропозиції тиждень 1',
+            weekKey: '2025-W01',
+            type: 'commercial_proposals',
+            target: 50,
+            progress: 35,
+            description: 'Створити комерційні пропозиції для нових клієнтів',
+            managerId: 'emp-1',
+            managerName: 'Ангеліна Мудрицька',
+            status: 'active',
+            clients: ['client-1', 'client-2'],
+            createdAt: new Date().toISOString(),
+            createdBy: 'demo-user'
+        }
+    ];
+}
+
+function getTestFocusTypes() {
+    return [
+        {
+            id: 'focus-1',
+            name: 'Комерційні пропозиції',
+            type: 'quantity',
+            description: 'Кількість створених комерційних пропозицій',
+            unit: 'шт',
+            category: 'sales'
+        },
+        {
+            id: 'focus-2',
+            name: 'Ефективні дзвінки',
+            type: 'quantity',
+            description: 'Кількість проведених ефективних дзвінків',
+            unit: 'шт',
+            category: 'communication'
+        },
+        {
+            id: 'focus-3',
+            name: 'Середній чек',
+            type: 'revenue',
+            description: 'Середній чек за замовлення',
+            unit: 'грн',
+            category: 'financial'
+        },
+        {
+            id: 'focus-4',
+            name: 'Зразки товарів',
+            type: 'quantity',
+            description: 'Кількість відправлених зразків',
+            unit: 'шт',
+            category: 'sales'
+        }
+    ];
 }

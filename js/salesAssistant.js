@@ -4,100 +4,228 @@
 import * as firebase from './firebase.js';
 import { initDashboardPage } from './dashboard.js';
 import { initFocusPage } from './focus.js';
+import { initFocus2Module } from './salesAssistant/focus2/index.js';
 import { loadClientManagerDirectory } from './main.js';
 import { initDepartmentDashboard } from './departmentDashboard.js';
 import { initSmartDayModule } from './smartDay.js';
-import { initDebtsModule } from './debts.js';
+import { initDebtsModule, cleanupDebtsModule } from './debts.js';
 import { initPlanFactModule } from './planFact.js';
+import { initManagerCalendarModule, cleanupManagerCalendarModule } from './managerCalendar.js';
+import { initWorkloadModule, cleanupWorkloadModule } from './workload.js';
+import { initCommercialProposalModule } from './salesAssistant/commercialProposal/index.js';
 
 export function initSalesAssistantPage(container) {
+    if (!container) {
+        console.error('Container is null in initSalesAssistantPage');
+        return;
+    }
+    
+    // Проверяем, готов ли DOM
+    if (document.readyState !== 'complete') {
+        console.log('DOM not ready, waiting...');
+        document.addEventListener('DOMContentLoaded', () => {
+            initSalesAssistantPage(container);
+        });
+        return;
+    }
     container.innerHTML = `
-        <div class="flex gap-2 mb-4 flex-wrap">
-            <button id="assistantTabBtn" class="btn btn-primary">Помічник</button>
-            <button id="signalizationTabBtn" class="btn btn-secondary">Сигналізація</button>
-            <button id="dashboardTabBtn" class="btn btn-secondary">Головний дашборд</button>
-            <button id="departmentDashboardTabBtn" class="btn btn-secondary">Дашборд по відділах</button>
-            <button id="focusTabBtn" class="btn btn-secondary">Фокус</button>
-            <button id="smartDayTabBtn" class="btn btn-secondary">Створи мій день</button>
-            <button id="debtsTabBtn" class="btn btn-secondary">Дебіторка</button>
-            <button id="planFactTabBtn" class="btn btn-secondary">План-Факт</button>
+        <div class="modern-tabs-container mb-2">
+            <div class="modern-tabs-wrapper">
+                <button id="assistantTabBtn" class="modern-tab-btn active" data-tab="assistant">
+                    <i class="fas fa-chart-line tab-icon"></i>
+                    <span class="tab-text">Помічник</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button id="signalizationTabBtn" class="modern-tab-btn" data-tab="signalization">
+                    <i class="fas fa-bell tab-icon"></i>
+                    <span class="tab-text">Сигналізація</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button id="departmentDashboardTabBtn" class="modern-tab-btn" data-tab="department">
+                    <i class="fas fa-building tab-icon"></i>
+                    <span class="tab-text">Дашборд по відділах</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button id="focusTabBtn" class="modern-tab-btn" data-tab="focus">
+                    <i class="fas fa-bullseye tab-icon"></i>
+                    <span class="tab-text">Фокус 2.0</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button id="smartDayTabBtn" class="modern-tab-btn" data-tab="smart-day">
+                    <i class="fas fa-calendar-day tab-icon"></i>
+                    <span class="tab-text">Створи мій день</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button id="debtsTabBtn" class="modern-tab-btn" data-tab="debts">
+                    <i class="fas fa-money-bill-wave tab-icon"></i>
+                    <span class="tab-text">Дебіторка</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button id="planFactTabBtn" class="modern-tab-btn" data-tab="plan-fact">
+                    <i class="fas fa-chart-bar tab-icon"></i>
+                    <span class="tab-text">План-Факт</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button id="managerCalendarTabBtn" class="modern-tab-btn" data-tab="calendar">
+                    <i class="fas fa-calendar-alt tab-icon"></i>
+                    <span class="tab-text">Календар менеджера</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button id="workloadTabBtn" class="modern-tab-btn" data-tab="workload">
+                    <i class="fas fa-tachometer-alt tab-icon"></i>
+                    <span class="tab-text">Навантаження</span>
+                    <div class="tab-indicator"></div>
+                </button>
+                <button id="commercialProposalTabBtn" class="modern-tab-btn" data-tab="commercial-proposal">
+                    <i class="fas fa-file-contract tab-icon"></i>
+                    <span class="tab-text">Комерційна пропозиція</span>
+                    <div class="tab-indicator"></div>
+                </button>
+            </div>
         </div>
         <div id="salesAssistantMain"></div>
         <div id="alerts-root" class="hidden"></div>
-        <div id="dashboard-root" class="hidden"></div>
         <div id="department-dashboard-root" class="hidden"></div>
         <div id="focus-root" class="hidden"></div>
         <div id="smartday-root" class="hidden"></div>
         <div id="debts-root" class="hidden"></div>
         <div id="planfact-root" class="hidden"></div>
+        <div id="manager-calendar-root" class="hidden"></div>
+        <div id="workload-root" class="hidden"></div>
+        <div id="commercial-proposal-root" class="hidden"></div>
     `;
 
     const assistantTabBtn = container.querySelector('#assistantTabBtn');
     const signalizationTabBtn = container.querySelector('#signalizationTabBtn');
-    const dashboardTabBtn = container.querySelector('#dashboardTabBtn');
     const departmentDashboardTabBtn = container.querySelector('#departmentDashboardTabBtn');
     const focusTabBtn = container.querySelector('#focusTabBtn');
     const smartDayTabBtn = container.querySelector('#smartDayTabBtn');
     const debtsTabBtn = container.querySelector('#debtsTabBtn');
     const planFactTabBtn = container.querySelector('#planFactTabBtn');
+    const managerCalendarTabBtn = container.querySelector('#managerCalendarTabBtn');
+    const workloadTabBtn = container.querySelector('#workloadTabBtn');
     
     const mainBlock = container.querySelector('#salesAssistantMain');
     const alertsRoot = container.querySelector('#alerts-root');
-    const dashboardRoot = container.querySelector('#dashboard-root');
     const departmentDashboardRoot = container.querySelector('#department-dashboard-root');
     const focusRoot = container.querySelector('#focus-root');
     const smartDayRoot = container.querySelector('#smartday-root');
     const debtsRoot = container.querySelector('#debts-root');
     const planFactRoot = container.querySelector('#planfact-root');
+    const managerCalendarRoot = container.querySelector('#manager-calendar-root');
+    const workloadRoot = container.querySelector('#workload-root');
     
     let alertsInited = false;
-    let dashboardInited = false;
     let departmentDashboardInited = false;
     let focusInited = false;
     let smartDayInited = false;
     let debtsInited = false;
     let planFactInited = false;
+    let managerCalendarInited = false;
+    let workloadInited = false;
+    let commercialProposalInited = false;
 
     function setActiveTab(activeBtn) {
-        const allBtns = [assistantTabBtn, signalizationTabBtn, dashboardTabBtn, departmentDashboardTabBtn, focusTabBtn, smartDayTabBtn, debtsTabBtn, planFactTabBtn];
+        // Очищаем модуль дебиторки при переключении на другие вкладки
+        if (debtsInited && activeBtn !== debtsTabBtn) {
+            cleanupDebtsModule();
+            console.log('🧹 Модуль дебиторки очищен при переключении вкладки');
+        }
+        
+        // УБРАНО: Очистка модуля календаря - теперь он сохраняет состояние
+        // if (managerCalendarInited && activeBtn !== managerCalendarTabBtn) {
+        //     cleanupManagerCalendarModule();
+        //     console.log('🧹 Модуль календаря очищен при переключении вкладки');
+        // }
+        
+        // Очищаем модуль навантаження при переключении на другие вкладки
+        if (workloadInited && activeBtn !== workloadTabBtn) {
+            cleanupWorkloadModule();
+            console.log('🧹 Модуль навантаження очищен при переключении вкладки');
+        }
+        
+        // Видаляємо активний клас з усіх кнопок
+        const allBtns = [assistantTabBtn, signalizationTabBtn, departmentDashboardTabBtn, focusTabBtn, smartDayTabBtn, debtsTabBtn, planFactTabBtn, managerCalendarTabBtn, workloadTabBtn, commercialProposalTabBtn];
         allBtns.forEach(btn => {
-            btn.classList.remove('btn-primary');
-            btn.classList.add('btn-secondary');
+            btn.classList.remove('active');
         });
-        activeBtn.classList.add('btn-primary');
-        activeBtn.classList.remove('btn-secondary');
+        
+        // Додаємо активний клас до обраної кнопки
+        activeBtn.classList.add('active');
+        
+        // Додаємо анімацію для активної кнопки
+        activeBtn.style.animation = 'none';
+        activeBtn.offsetHeight; // Trigger reflow
+        activeBtn.style.animation = 'tabSlideIn 0.3s ease-out';
 
         mainBlock.classList.add('hidden');
         alertsRoot.classList.add('hidden');
-        dashboardRoot.classList.add('hidden');
         departmentDashboardRoot.classList.add('hidden');
         focusRoot.classList.add('hidden');
         smartDayRoot.classList.add('hidden');
         debtsRoot.classList.add('hidden');
         planFactRoot.classList.add('hidden');
+        managerCalendarRoot.classList.add('hidden');
+        workloadRoot.classList.add('hidden');
     }
 
     function showAssistantTab() {
         setActiveTab(assistantTabBtn);
         mainBlock.classList.remove('hidden');
+        
+        // Проверяем, выбрана ли компания
+        if (!window.state?.currentCompanyId) {
+            mainBlock.innerHTML = `
+                <div class="w-full min-h-screen pb-6">
+                    <header class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <h1 class="text-3xl md:text-4xl font-bold">Помічник продажу</h1>
+                            <p class="mt-2">Аналіз та рекомендації по продажах.</p>
+                        </div>
+                    </header>
+                    
+                    <div class="text-center p-8">
+                        <div class="text-yellow-500 mb-4">
+                            <i class="fas fa-exclamation-triangle text-2xl"></i>
+                        </div>
+                        <p class="text-lg font-medium text-gray-200 mb-2">Компанія не вибрана</p>
+                        <p class="text-sm text-gray-400">Будь ласка, спочатку виберіть компанію для роботи з помічником продажу</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
         renderSalesAssistantMain(mainBlock);
     }
-    function showSignalizationTab() {
+    async function showSignalizationTab() {
+        console.log('📊 Відкриття вкладки сигналізації');
         setActiveTab(signalizationTabBtn);
         alertsRoot.classList.remove('hidden');
-        if (!alertsInited && window.initAlertsModule) {
-            window.initAlertsModule(alertsRoot);
-            alertsInited = true;
+        if (!alertsInited) {
+            try {
+                // Динамічно завантажуємо модуль сигналізації
+                console.log('📦 Завантаження модуля сигналізації...');
+                const signalizationModule = await import('./signalization.js?v=1754480168835');
+                console.log('✅ Модуль сигналізації завантажено');
+                
+                // Ініціалізуємо модуль
+                await signalizationModule.initSignalizationModule(alertsRoot);
+                alertsInited = true;
+            } catch (error) {
+                console.error('❌ Помилка завантаження модуля сигналізації:', error);
+                // Fallback до старого модуля якщо новий не завантажений
+                if (window.initAlertsModule) {
+                    console.log('⚠️ Використовуємо старий модуль як fallback');
+                    window.initAlertsModule(alertsRoot);
+                } else {
+                    alertsRoot.innerHTML = '<div class="text-red-500 p-4">Помилка завантаження модуля сигналізації</div>';
+                }
+                alertsInited = true;
+            }
         }
     }
-    function showDashboardTab() {
-        setActiveTab(dashboardTabBtn);
-        dashboardRoot.classList.remove('hidden');
-        if (!dashboardInited) {
-            initDashboardPage(dashboardRoot);
-            dashboardInited = true;
-        }
-    }
+
     function showDepartmentDashboardTab() {
         setActiveTab(departmentDashboardTabBtn);
         departmentDashboardRoot.classList.remove('hidden');
@@ -106,12 +234,16 @@ export function initSalesAssistantPage(container) {
             departmentDashboardInited = true;
         }
     }
-    function showFocusTab() {
+    async function showFocusTab() {
         setActiveTab(focusTabBtn);
         focusRoot.classList.remove('hidden');
         if (!focusInited) {
-            initFocusPage(focusRoot);
-            focusInited = true;
+            try {
+                await initFocus2Module(focusRoot);
+                focusInited = true;
+            } catch (error) {
+                console.error('❌ Ошибка инициализации Фокус 2.0:', error);
+            }
         }
     }
     function showSmartDayTab() {
@@ -138,69 +270,248 @@ export function initSalesAssistantPage(container) {
             planFactInited = true;
         }
     }
+    
+    function showManagerCalendarTab() {
+        setActiveTab(managerCalendarTabBtn);
+        managerCalendarRoot.classList.remove('hidden');
+        
+        // Инициализируем календарь только при первом запуске
+        if (!managerCalendarInited) {
+            initManagerCalendarModule(managerCalendarRoot);
+            managerCalendarInited = true;
+        } else {
+            // Если календарь уже инициализирован, просто восстанавливаем его
+            if (window.managerCalendarInstance && window.managerCalendarInstance.isFrozen) {
+                window.managerCalendarInstance.init(managerCalendarRoot);
+            }
+        }
+    }
 
-    assistantTabBtn.onclick = showAssistantTab;
-    signalizationTabBtn.onclick = showSignalizationTab;
-    dashboardTabBtn.onclick = showDashboardTab;
-    departmentDashboardTabBtn.onclick = showDepartmentDashboardTab;
-    focusTabBtn.onclick = showFocusTab;
-    smartDayTabBtn.onclick = showSmartDayTab;
-    debtsTabBtn.onclick = showDebtsTab;
-    planFactTabBtn.onclick = showPlanFactTab;
+    async function showWorkloadTab() {
+        console.log('📊 Відкриття вкладки навантаження');
+        setActiveTab(workloadTabBtn);
+        workloadRoot.classList.remove('hidden');
+        if (!workloadInited) {
+            try {
+                // Динамічно завантажуємо модуль навантаження
+                const workloadModule = await import('./workload.js?v=1754480168835');
+                await workloadModule.initWorkloadModule(workloadRoot);
+                workloadInited = true;
+                console.log('✅ Модуль навантаження инициализирован');
+            } catch (error) {
+                console.error('❌ Ошибка инициализации модуля навантаження:', error);
+            }
+        }
+    }
+
+    function showCommercialProposalTab() {
+        console.log('📋 Відкриття вкладки комерційної пропозиції');
+        setActiveTab(commercialProposalTabBtn);
+        const commercialProposalRoot = container.querySelector('#commercial-proposal-root');
+        commercialProposalRoot.classList.remove('hidden');
+        
+        if (!commercialProposalInited) {
+            try {
+                initCommercialProposalModule(commercialProposalRoot);
+                commercialProposalInited = true;
+                console.log('✅ Модуль комерційної пропозиції успішно ініціалізовано');
+            } catch (error) {
+                console.error('❌ Помилка ініціалізації модуля комерційної пропозиції:', error);
+                commercialProposalRoot.innerHTML = `
+                    <div class="bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
+                        <h2 class="text-2xl font-bold text-white mb-4">Помилка завантаження</h2>
+                        <p class="text-gray-300">Не вдалося завантажити модуль комерційної пропозиції</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+            assistantTabBtn.onclick = showAssistantTab;
+        signalizationTabBtn.onclick = showSignalizationTab;
+        departmentDashboardTabBtn.onclick = showDepartmentDashboardTab;
+        focusTabBtn.onclick = showFocusTab;
+        smartDayTabBtn.onclick = showSmartDayTab;
+        debtsTabBtn.onclick = showDebtsTab;
+        planFactTabBtn.onclick = showPlanFactTab;
+        managerCalendarTabBtn.onclick = showManagerCalendarTab;
+        workloadTabBtn.onclick = showWorkloadTab;
+        commercialProposalTabBtn.onclick = showCommercialProposalTab;
     showAssistantTab(); // По умолчанию
 }
 
 // --- Додаю функцію для завантаження співробітників ---
 async function loadEmployees(companyId) {
-    const employeesRef = firebase.collection(firebase.db, 'companies', companyId, 'employees');
-    const snapshot = await firebase.getDocs(employeesRef);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(emp => emp.active !== false);
+    try {
+        // Проверяем разрешения пользователя
+        const currentState = window.state;
+        console.log('🔍 Проверка разрешений для доступа к сотрудникам:', {
+            isOwner: currentState?.currentUserPermissions?.isOwner,
+            settings_employees_manage: currentState?.currentUserPermissions?.settings_employees_manage,
+            timesheet_view: currentState?.currentUserPermissions?.timesheet_view,
+            sales_manage: currentState?.currentUserPermissions?.sales_manage,
+            allPermissions: currentState?.currentUserPermissions
+        });
+        
+        const hasAccess = currentState?.currentUserPermissions?.isOwner || 
+                         currentState?.currentUserPermissions?.settings_employees_manage ||
+                         currentState?.currentUserPermissions?.timesheet_view ||
+                         currentState?.currentUserPermissions?.sales_manage;
+        
+        if (!hasAccess) {
+            console.warn('⚠️ У пользователя нет разрешений для доступа к сотрудникам');
+            return [];
+        }
+        
+        // Если пользователь не привязан к сотруднику, но имеет права sales_manage,
+        // то даем ему доступ к сотрудникам
+        if (!currentState?.currentUserId && currentState?.currentUserPermissions?.sales_manage) {
+            console.log('✅ Пользователь не привязан к сотруднику, но имеет права sales_manage - даем доступ');
+        }
+        
+        try {
+            const employeesRef = firebase.collection(firebase.db, 'companies', companyId, 'employees');
+            const snapshot = await firebase.getDocs(employeesRef);
+            const employees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(emp => emp.active !== false);
+            
+            // Если нет сотрудников, но у пользователя есть права sales_manage, создаем демо-данные
+            if (employees.length === 0 && currentState?.currentUserPermissions?.sales_manage) {
+                console.log('📋 Создаем демо-данные сотрудников для пользователя с правами sales_manage');
+                return [
+                    {
+                        id: 'demo-manager-1',
+                        name: 'Демо Менеджер 1',
+                        department: { id: 'demo-dept-1', name: 'Відділ продажів' },
+                        role: 'менеджер',
+                        active: true
+                    },
+                    {
+                        id: 'demo-manager-2', 
+                        name: 'Демо Менеджер 2',
+                        department: { id: 'demo-dept-1', name: 'Відділ продажів' },
+                        role: 'менеджер',
+                        active: true
+                    }
+                ];
+            }
+            
+            return employees;
+        } catch (firestoreError) {
+            console.error('❌ Ошибка Firestore при загрузке сотрудников:', firestoreError);
+            
+            // Если ошибка связана с правами доступа, но у пользователя есть sales_manage,
+            // создаем демо-данные
+            if (firestoreError.code === 'permission-denied' && currentState?.currentUserPermissions?.sales_manage) {
+                console.log('📋 Создаем демо-данные сотрудников из-за ошибки прав доступа');
+                return [
+                    {
+                        id: 'demo-manager-1',
+                        name: 'Демо Менеджер 1',
+                        department: { id: 'demo-dept-1', name: 'Відділ продажів' },
+                        role: 'менеджер',
+                        active: true
+                    },
+                    {
+                        id: 'demo-manager-2', 
+                        name: 'Демо Менеджер 2',
+                        department: { id: 'demo-dept-1', name: 'Відділ продажів' },
+                        role: 'менеджер',
+                        active: true
+                    }
+                ];
+            }
+            
+            throw firestoreError; // Перебрасываем ошибку дальше
+        }
+    } catch (error) {
+        console.error('❌ Ошибка загрузки сотрудников:', error);
+        
+        // Если ошибка связана с правами доступа, но у пользователя есть sales_manage
+        const currentState = window.state;
+        if (error.code === 'permission-denied' && currentState?.currentUserPermissions?.sales_manage) {
+            console.warn('⚠️ Ошибка доступа к сотрудникам, но у пользователя есть права sales_manage');
+            console.warn('⚠️ Возможно, нужно обновить правила Firestore или привязать пользователя к сотруднику');
+            
+            // Возвращаем демо-данные вместо пустого массива
+            console.log('📋 Возвращаем демо-данные сотрудников из-за ошибки прав доступа');
+            return [
+                {
+                    id: 'demo-manager-1',
+                    name: 'Демо Менеджер 1',
+                    department: { id: 'demo-dept-1', name: 'Відділ продажів' },
+                    role: 'менеджер',
+                    active: true
+                },
+                {
+                    id: 'demo-manager-2', 
+                    name: 'Демо Менеджер 2',
+                    department: { id: 'demo-dept-1', name: 'Відділ продажів' },
+                    role: 'менеджер',
+                    active: true
+                }
+            ];
+        }
+        
+        return [];
+    }
 }
 
 function renderSalesAssistantMain(mainBlock) {
     mainBlock.innerHTML = `
-        <div class="max-w-7xl mx-auto min-h-screen pb-10">
-            <header class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="w-full min-h-screen pb-6">
+            <header class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 class="text-3xl md:text-4xl font-bold">Помічник продажу</h1>
                     <p class="mt-2">Аналіз та рекомендації по продажах.</p>
                 </div>
             </header>
-            <div id="status-container" class="text-center p-6">
-                <div id="loader" class="loader mx-auto"></div>
-                <p id="status-message" class="text-lg mt-4 font-medium">Завантаження даних...</p>
-            </div>
-            <div id="analysis-section" class="p-6 mb-8 hidden">
-                <h2 class="text-xl font-bold mb-4">Оберіть відділ, менеджера та клієнта для аналізу</h2>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div>
-                        <label for="department-filter" class="block text-sm font-medium mb-1">Відділ</label>
-                        <select id="department-filter" class="dark-input"></select>
+            
+            <!-- Індикатор завантаження -->
+            <div id="sales-loading-container" class="text-center p-8">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                <div>
+                    <p id="sales-loading-message" class="text-lg font-medium text-gray-200 mb-2">Завантаження данных...</p>
+                    <div class="bg-gray-700 rounded-full h-2 max-w-md mx-auto mb-2">
+                        <div id="sales-progress-bar" class="bg-indigo-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
                     </div>
-                    <div>
-                        <label for="manager-filter" class="block text-sm font-medium mb-1">Менеджер</label>
-                        <select id="manager-filter" class="dark-input"></select>
-                    </div>
-                    <div>
-                        <label for="client-search" class="block text-sm font-medium mb-1">Пошук клієнта</label>
-                        <input type="text" id="client-search" class="dark-input" placeholder="Почніть вводити ім'я..." disabled>
-                    </div>
-                    <div>
-                        <label for="client-filter" class="block text-sm font-medium mb-1">Клієнт</label>
-                        <select id="client-filter" class="dark-input" disabled></select>
-                    </div>
+                    <p id="sales-loading-step" class="text-sm text-gray-400">Ініціалізація...</p>
                 </div>
             </div>
-            <div id="results-section" class="hidden">
-                <div id="client-kpi" class="mb-8"></div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div>
-                        <h3 class="text-lg font-bold mb-4">💡 Рекомендації по сфері (<span id="client-sphere-name"></span>)</h3>
-                        <ul id="segment-recs" class="list-disc list-inside space-y-2"></ul>
+            
+            <!-- Основний контент (спочатку прихований) -->
+            <div id="sales-main-content" class="hidden">
+                <div id="analysis-section" class="p-4 mb-4">
+                    <h2 class="text-xl font-bold mb-4">Оберіть відділ, менеджера та клієнта для аналізу</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+                        <div>
+                            <label for="sales-department-filter" class="block text-sm font-medium mb-1">Відділ</label>
+                            <select id="sales-department-filter" class="dark-input"></select>
+                        </div>
+                        <div>
+                            <label for="sales-manager-filter" class="block text-sm font-medium mb-1">Менеджер</label>
+                            <select id="sales-manager-filter" class="dark-input"></select>
+                        </div>
+                        <div>
+                            <label for="sales-client-search" class="block text-sm font-medium mb-1">Пошук клієнта</label>
+                            <input type="text" id="sales-client-search" class="dark-input" placeholder="Почніть вводити ім'я..." disabled>
+                        </div>
+                        <div>
+                            <label for="sales-client-filter" class="block text-sm font-medium mb-1">Клієнт</label>
+                            <select id="sales-client-filter" class="dark-input" disabled></select>
+                        </div>
                     </div>
-                    <div>
-                        <h3 class="text-lg font-bold mb-4">🚀 Хіти продаж в цій сфері для Вас</h3>
-                        <ul id="top-sales-recs" class="list-disc list-inside space-y-2"></ul>
+                </div>
+                <div id="results-section" class="hidden">
+                    <div id="client-kpi" class="mb-4"></div>
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
+                        <div>
+                            <h3 class="text-lg font-bold mb-4">💡 Рекомендації по сфері (<span id="client-sphere-name"></span>)</h3>
+                            <ul id="segment-recs" class="list-disc list-inside space-y-2"></ul>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold mb-4">🚀 Хіти продаж в цій сфері для Вас</h3>
+                            <ul id="top-sales-recs" class="list-disc list-inside space-y-2"></ul>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -225,14 +536,46 @@ function renderSalesAssistantMain(mainBlock) {
     };
     let allMembers = [];
 
-    const statusContainer = mainBlock.querySelector('#status-container');
-    const loader = mainBlock.querySelector('#loader');
-    const statusMessage = mainBlock.querySelector('#status-message');
+    // Функции управления UI загрузки
+    function updateSalesLoadingProgress(percent, message, step) {
+        const progressBar = mainBlock.querySelector('#sales-progress-bar');
+        const loadingMessage = mainBlock.querySelector('#sales-loading-message');
+        const loadingStep = mainBlock.querySelector('#sales-loading-step');
+        
+        if (progressBar) progressBar.style.width = `${percent}%`;
+        if (loadingMessage) loadingMessage.textContent = message;
+        if (loadingStep) loadingStep.textContent = step;
+    }
+    
+    function showSalesMainContent() {
+        const loadingContainer = mainBlock.querySelector('#sales-loading-container');
+        const mainContent = mainBlock.querySelector('#sales-main-content');
+        
+        if (loadingContainer) loadingContainer.classList.add('hidden');
+        if (mainContent) mainContent.classList.remove('hidden');
+    }
+    
+    function showSalesError(errorMessage) {
+        const loadingContainer = mainBlock.querySelector('#sales-loading-container');
+        if (loadingContainer) {
+            loadingContainer.innerHTML = `
+                <div class="text-center p-8">
+                    <div class="text-red-500 text-6xl mb-4">⚠️</div>
+                    <p class="text-lg font-medium text-red-400 mb-2">Помилка завантаження</p>
+                    <p class="text-sm text-gray-400">${errorMessage}</p>
+                    <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                        Спробувати ще раз
+                    </button>
+                </div>
+            `;
+        }
+    }
+
     const analysisSection = mainBlock.querySelector('#analysis-section');
-    const departmentFilter = mainBlock.querySelector('#department-filter');
-    const managerFilter = mainBlock.querySelector('#manager-filter');
-    const clientSearch = mainBlock.querySelector('#client-search');
-    const clientFilter = mainBlock.querySelector('#client-filter');
+    const departmentFilter = mainBlock.querySelector('#sales-department-filter');
+    const managerFilter = mainBlock.querySelector('#sales-manager-filter');
+    const clientSearch = mainBlock.querySelector('#sales-client-search');
+    const clientFilter = mainBlock.querySelector('#sales-client-filter');
     const resultsSection = mainBlock.querySelector('#results-section');
     const segmentRecsList = mainBlock.querySelector('#segment-recs');
     const topSalesRecsList = mainBlock.querySelector('#top-sales-recs');
@@ -241,18 +584,29 @@ function renderSalesAssistantMain(mainBlock) {
 
     async function loadAndProcessData() {
         try {
+            updateSalesLoadingProgress(5, 'Ініціалізація...', 'Перевірка компанії та користувача');
+            
             const companyId = window.state?.currentCompanyId;
             if (!companyId) throw new Error('Компанія не вибрана!');
+            
+            updateSalesLoadingProgress(10, 'Завантаження користувачів...', 'Отримання інформації про користувача');
+            
             // --- Витягуємо userId з window.state або firebase.auth.currentUser.uid ---
             let userId = window.state?.currentUserId;
             if (!userId && firebase.auth && firebase.auth.currentUser) {
                 userId = firebase.auth.currentUser.uid;
             }
             userAccess.userId = userId;
+            
+            updateSalesLoadingProgress(15, 'Завантаження користувачів...', 'Завантаження членів компанії');
+            
             // --- Завантажуємо members (користувачі) ---
             const membersRef = firebase.collection(firebase.db, 'companies', companyId, 'members');
             const membersSnap = await firebase.getDocs(membersRef);
             allMembers = membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            updateSalesLoadingProgress(25, 'Визначення ролей...', 'Аналіз прав доступу користувача');
+            
             // --- Знаходимо поточного користувача у members ---
             const currentMember = allMembers.find(m => m.userId === userId || m.email === window.state?.currentUserEmail);
             if (currentMember && currentMember.employeeId) {
@@ -269,22 +623,61 @@ function renderSalesAssistantMain(mainBlock) {
                     userAccess.role = '';
                 }
             }
+            
+            // Проверяем, привязан ли пользователь к сотруднику
+            if (!userAccess.employeeId) {
+                console.log('⚠️ Пользователь не привязан к сотруднику');
+                // Если пользователь не привязан к сотруднику, но имеет права sales_manage,
+                // то даем ему доступ как администратору
+                const currentState = window.state;
+                if (currentState?.currentUserPermissions?.sales_manage) {
+                    userAccess.isAdmin = true;
+                    console.log('✅ Пользователь получил права администратора для модуля продаж');
+                }
+            }
+            
+            updateSalesLoadingProgress(35, 'Завантаження даних продажу...', 'Підключення до серверів даних');
+            
             const [dataRes, dataJulyRes, refRes, employeesList] = await Promise.all([
                 fetch('модуль помічник продажу/data.json'),
                 fetch('https://fastapi.lookfort.com/nomenclature.analysis'),
                 fetch('https://fastapi.lookfort.com/nomenclature.analysis?mode=company_url'),
                 loadEmployees(companyId)
             ]);
+            
+            updateSalesLoadingProgress(60, 'Обробка даних...', 'Парсинг даних продажу та клієнтів');
+            
             const data = await dataRes.json();
             const dataJuly = await dataJulyRes.json();
             masterData = data.concat(dataJuly);
             const refData = await refRes.json();
             clientLinks = Object.fromEntries(refData.map(item => [item['Клиент.Код'], item['посилання']]));
+            
+            updateSalesLoadingProgress(75, 'Обробка співробітників...', 'Завантаження співробітників та відділів');
+            
             employees = employeesList;
+            
+            // Проверяем, есть ли сотрудники
+            if (employees.length === 0) {
+                console.warn('⚠️ Нет сотрудников для отображения');
+                
+                // Проверяем, привязан ли пользователь к сотруднику
+                const currentState = window.state;
+                if (!currentState?.currentUserPermissions?.employeeId) {
+                    showSalesError('Для работы с модулем "Помічник продажу" необходимо привязать пользователя к сотруднику или предоставить права администратора. Обратитесь к администратору.');
+                } else {
+                    showSalesError('Для работы с модулем "Помічник продажу" необходимы разрешения на просмотр сотрудников. Обратитесь к администратору.');
+                }
+                return;
+            }
+            
             employees.forEach(emp => {
                 employeesById[emp.id] = emp;
             });
             managers = employees.filter(emp => !emp.role || emp.role.toLowerCase().includes('менедж'));
+            
+            updateSalesLoadingProgress(85, 'Створення структури відділів...', 'Формування списку відділів');
+            
             // --- Формуємо список унікальних відділів як об'єктів {id, name} ---
             const depMap = {};
             employees.forEach(emp => {
@@ -301,11 +694,20 @@ function renderSalesAssistantMain(mainBlock) {
                 }
             });
             departments = Object.entries(depMap).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+            
+            // Если нет отделов, но есть демо-сотрудники, создаем демо-отдел
+            if (departments.length === 0 && employees.some(emp => emp.id.startsWith('demo-'))) {
+                console.log('📋 Создаем демо-отдел для демо-сотрудников');
+                departments = [{ id: 'demo-dept-1', name: 'Відділ продажів' }];
+            }
             // --- Визначаємо доступи користувача ---
             if (userAccess.employeeId && employeesById[userAccess.employeeId]) {
                 userAccess.employee = employeesById[userAccess.employeeId];
+                console.log('👤 Загружен объект сотрудника:', userAccess.employee);
+                
                 // Визначаємо isAdmin (можна розширити список ролей)
                 userAccess.isAdmin = userAccess.role.includes('адмін') || userAccess.role.includes('owner') || userAccess.role.includes('власник');
+                
                 // --- Додаю визначення departmentId для менеджера ---
                 if (!userAccess.departmentId && userAccess.employee && userAccess.employee.department) {
                     if (typeof userAccess.employee.department === 'object' && userAccess.employee.department.id) {
@@ -314,12 +716,20 @@ function renderSalesAssistantMain(mainBlock) {
                         userAccess.departmentId = userAccess.employee.department;
                     }
                 }
+                console.log('🏢 Определен отдел сотрудника:', userAccess.departmentId);
+            } else {
+                console.warn('⚠️ Сотрудник не найден в списке:', {
+                    employeeId: userAccess.employeeId,
+                    availableEmployees: Object.keys(employeesById)
+                });
             }
-            statusContainer.classList.add('hidden');
-            // Всегда популяризируем фильтры в salesAssistant - убрали блокировку
+            
+            updateSalesLoadingProgress(95, 'Підготовка інтерфейсу...', 'Створення фільтрів та форм');
+            
             populateDepartmentFilter();
             populateManagerFilter();
-            analysisSection.classList.remove('hidden');
+            
+            updateSalesLoadingProgress(100, 'Готово!', 'Помічник продажу успішно завантажено');
 
             // --- Додаю підтримку автоматичного вибору клієнта ---
             if (window.state && window.state.preselectClientCode) {
@@ -344,10 +754,15 @@ function renderSalesAssistantMain(mainBlock) {
                 }
                 delete window.state.preselectClientCode;
             }
+            
+            // Задержка чтобы пользователь увидел 100%
+            setTimeout(() => {
+                showSalesMainContent();
+            }, 500);
+            
         } catch (error) {
-            statusMessage.style.color = 'red';
-            statusMessage.textContent = `Помилка: ${error.message}`;
-            loader.classList.add('hidden');
+            console.error('❌ Помилка завантаження в помічнику продажу:', error);
+            showSalesError(error.message || 'Невідома помилка');
         }
     }
 
@@ -386,6 +801,12 @@ function renderSalesAssistantMain(mainBlock) {
                 // Тільки сам користувач
                 filteredManagers = managers.filter(emp => emp.id === userAccess.employeeId);
                 console.log('[populateManagerFilter] Менеджер бачить тільки себе:', filteredManagers);
+                
+                // Если менеджер не найден в списке (возможно, это демо-данные), показываем всех
+                if (filteredManagers.length === 0) {
+                    console.log('[populateManagerFilter] Менеджер не найден в списке, показываем всех');
+                    filteredManagers = managers;
+                }
             } else if (userAccess.role && userAccess.role.includes('керівник')) {
                 // Всі з його відділу
                 filteredManagers = managers.filter(emp => {
@@ -413,6 +834,10 @@ function renderSalesAssistantMain(mainBlock) {
                 return false;
             });
             console.log('[populateManagerFilter] Фільтр по відділу:', filteredManagers);
+        } else {
+            // Если пользователь не привязан к сотруднику, но имеет права sales_manage, показываем всех
+            console.log('[populateManagerFilter] Пользователь не привязан к сотруднику, показываем всех менеджеров');
+            filteredManagers = managers;
         }
         filteredManagers.forEach(emp => {
             const option = new Option(emp.name, emp.id);
@@ -438,9 +863,10 @@ function renderSalesAssistantMain(mainBlock) {
         const clients = Object.entries(clientManagerDirectory)
             .filter(([code, info]) => info.manager && emp.name && info.manager.trim() === emp.name.trim())
             .map(([code, info]) => ({
-                name: masterData.find(item => item['Клиент.Код'] === code)?.['Клиент'] || code,
+                name: info.name || code, // Берем название из справочника
                 code,
                 sphere: masterData.find(item => item['Клиент.Код'] === code)?.['Сфера деятельности'] || '',
+                hasSales: masterData.some(item => item['Клиент.Код'] === code) // Проверяем есть ли продажи
             }));
         uniqueClientsByManager[selectedManagerId] = Array.from(new Map(clients.map(c => [c.code, c])).values()).sort((a, b) => a.name.localeCompare(b.name));
         const filteredClients = uniqueClientsByManager[selectedManagerId].filter(client =>
@@ -458,7 +884,6 @@ function renderSalesAssistantMain(mainBlock) {
 
     // --- Додаю обробник для departmentFilter ---
     departmentFilter.onchange = () => {
-        // Всегда вызываем populateManagerFilter - убрали блокировку
         populateManagerFilter();
         // Скидаємо вибір менеджера і клієнта
         managerFilter.value = '';
@@ -750,7 +1175,7 @@ function renderSalesAssistantMain(mainBlock) {
         clientKpiContainer.innerHTML = `
             <div class="bg-gray-800 rounded-lg shadow p-6">
                 <h2 class="text-xl font-bold text-white">${clientInfo['Клиент']} <span class="text-lg font-normal text-gray-400">(${clientInfo['Сфера деятельности'] || clientInfo['Клиент.Сфера деятельность'] || ''})</span></h2>
-                <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4 text-center">
                     <div><p class="text-sm text-gray-400">Загальна виручка</p><p class="text-2xl font-bold text-green-400">${totalRevenue.toFixed(2)}</p>
                         <div class="text-xs text-gray-400 mt-1 ${isForecastOverdue ? 'bg-red-900 rounded px-2 py-1' : ''}">Прогноз: коли купить <b>${forecastDate}</b>, сума <b>${forecastSum.toFixed(2)}</b> <span class='text-gray-500'>(середній інтервал: ${avgIntervalDays ? avgIntervalDays.toFixed(1) : '-'} днів)</span></div>
                     </div>
@@ -760,7 +1185,7 @@ function renderSalesAssistantMain(mainBlock) {
                 </div>
                 <div class="mt-4 text-center"><span class="inline-block px-3 py-1 rounded bg-gray-900 text-gray-300 text-sm">Сегмент: <b>${segment}</b></span></div>
                 ${buttonsRow}
-                <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8" id="client-charts-block">
+                <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8" id="client-charts-block">
                   <div><canvas id="clientRevenueChart" height="120"></canvas><div class="text-center text-xs text-gray-400 mt-2">Динаміка виручки по місяцях</div></div>
                   <div><canvas id="clientAvgCheckChart" height="120"></canvas><div class="text-center text-xs text-gray-400 mt-2">Динаміка середнього чека</div></div>
                   <div><canvas id="clientCountChart" height="120"></canvas><div class="text-center text-xs text-gray-400 mt-2">Кількість покупок по місяцях</div></div>
@@ -909,16 +1334,96 @@ function renderSalesAssistantMain(mainBlock) {
         // ... (сюда добавить динамическое создание и обработку модалок, как в modules.js, но через mainBlock) ...
     }
 
-    function runAnalysis(selectedClientCode) {
+    // Функция для отображения пустого дашборда клиентов без продаж
+    function displayEmptyResults(clientCode, clientInfo) {
+        if (!clientKpiContainer || !segmentRecsList || !topSalesRecsList) return;
+        
+        const clientLink = clientInfo.link;
+        const clientName = clientInfo.name || clientCode;
+        const sphereName = 'Невідома';
+        
+        // Заполняем название сферы
+        if (clientSphereName) {
+            clientSphereName.textContent = sphereName;
+        }
+        
+        // KPI-блок для клиента без продаж
+        clientKpiContainer.innerHTML = `
+            <div class="bg-gray-800 rounded-lg shadow p-6">
+                <h2 class="text-xl font-bold text-white">
+                    ${clientLink ? `<a href="${clientLink}" target="_blank" class="text-blue-400 hover:text-blue-300">${clientName}</a>` : clientName} 
+                    <span class="text-lg font-normal text-gray-400">(Клієнт без продаж)</span>
+                </h2>
+                <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4 text-center">
+                    <div><p class="text-sm text-gray-400">Загальна виручка</p><p class="text-2xl font-bold text-gray-500">0.00</p>
+                        <div class="text-xs text-gray-400 mt-1">Продаж поки немає</div>
+                    </div>
+                    <div><p class="text-sm text-gray-400">Кількість покупок</p><p class="text-2xl font-bold text-gray-500">0</p></div>
+                    <div><p class="text-sm text-gray-400">Унікальних товарів</p><p class="text-2xl font-bold text-gray-500">0</p></div>
+                    <div><p class="text-sm text-gray-400">Середній чек</p><p class="text-2xl font-bold text-gray-500">0.00</p></div>
+                </div>
+                <div class="mt-4 text-center">
+                    <span class="inline-block px-3 py-1 rounded bg-yellow-900 text-yellow-300 text-sm">
+                        Сегмент: <b>Потенційний клієнт</b>
+                    </span>
+                </div>
+                <div class="mt-6 text-center">
+                    <div class="bg-blue-900 bg-opacity-30 border border-blue-600 rounded-lg p-4">
+                        <h3 class="text-lg font-bold text-blue-300 mb-2">💡 Рекомендації</h3>
+                        <p class="text-blue-200">Клієнт є у вашій базі, але поки не робив покупок.</p>
+                        <p class="text-blue-200 mt-1">Рекомендуємо зв'язатися з клієнтом та запропонувати наші товари.</p>
+                        ${clientLink ? `
+                            <div class="mt-3">
+                                <a href="${clientLink}" target="_blank" 
+                                   class="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                                    📋 Відкрити картку клієнта
+                                </a>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Рекомендации и топы для клиентов без продаж
+        segmentRecsList.innerHTML = `
+            <li>🎯 Зв'яжіться з клієнтом та дізнайтеся про його потреби</li>
+            <li>📋 Запропонуйте найпопулярніші товари нашої компанії</li>
+            <li>💬 Проведіть презентацію асортименту</li>
+            <li>🎁 Розгляньте можливість спеціальної пропозиції для першої покупки</li>
+        `;
+        
+        topSalesRecsList.innerHTML = `
+            <li>📞 Телефонний дзвінок для знайомства</li>
+            <li>📧 Відправка каталогу продукції</li>
+            <li>🤝 Особиста зустріч з клієнтом</li>
+            <li>💼 Презентація топових товарів компанії</li>
+        `;
+    }
+
+    async function runAnalysis(selectedClientCode) {
         if (!selectedClientCode) {
             resultsSection.classList.add('hidden');
             return;
         }
         const clientSales = masterData.filter(item => item['Клиент.Код'] == selectedClientCode);
+        
+        // Если нет продаж - показываем пустой дашборд с информацией о клиенте
         if (clientSales.length === 0) {
-            alert('Не знайдено даних про продажі для цього клієнта.');
+            // Получаем информацию о клиенте из справочника
+            const clientManagerDirectory = await loadClientManagerDirectory();
+            const clientInfo = clientManagerDirectory[selectedClientCode];
+            
+            if (clientInfo) {
+                // Показываем пустой дашборд с информацией что продаж нет
+                displayEmptyResults(selectedClientCode, clientInfo);
+                resultsSection.classList.remove('hidden');
+            } else {
+                alert('Клієнт не знайдений у справочнику.');
+            }
             return;
         }
+        
         const clientSphere = clientSales[0]['Сфера деятельности'];
         clientSphereName.textContent = clientSphere;
         const clientProducts = new Set(clientSales.map(item => item['Номенклатура']));
@@ -957,7 +1462,7 @@ function renderSalesAssistantMain(mainBlock) {
     // --- Автокомплит для поиска клиента ---
     // Добавляем контейнер для выпадающего списка
     let autocompleteList = document.createElement('div');
-    autocompleteList.id = 'client-autocomplete-list';
+    autocompleteList.id = 'sales-client-autocomplete-list';
     autocompleteList.style.position = 'absolute';
     autocompleteList.style.zIndex = '100';
     autocompleteList.style.background = '#1f2937'; // bg-gray-800
@@ -987,9 +1492,9 @@ function renderSalesAssistantMain(mainBlock) {
             item.textContent = `${client.name} (${client.sphere || 'Сфера не вказана'})`;
             item.dataset.code = client.code;
             if (idx === autocompleteIndex) item.classList.add('bg-indigo-800');
-            item.onclick = () => {
+            item.onclick = async () => {
                 clientFilter.value = client.code;
-                runAnalysis(client.code);
+                await runAnalysis(client.code);
                 autocompleteList.style.display = 'none';
             };
             autocompleteList.appendChild(item);
@@ -997,7 +1502,7 @@ function renderSalesAssistantMain(mainBlock) {
         autocompleteList.style.display = 'block';
     }
 
-    clientSearch.oninput = e => {
+    clientSearch.oninput = async e => {
         const manager = managerFilter.value;
         if (!manager) return;
         populateClientFilter(manager, clientSearch.value);
@@ -1011,12 +1516,12 @@ function renderSalesAssistantMain(mainBlock) {
         // Автовыбор, если остался только один клиент
         if (filteredClientsCache.length === 1) {
             clientFilter.value = filteredClientsCache[0].code;
-            runAnalysis(filteredClientsCache[0].code);
+            await runAnalysis(filteredClientsCache[0].code);
             autocompleteList.style.display = 'none';
         }
     };
     // Навигация по списку клиентов стрелками и Enter
-    clientSearch.addEventListener('keydown', e => {
+    clientSearch.addEventListener('keydown', async e => {
         if (autocompleteList.style.display !== 'block' || !filteredClientsCache.length) return;
         if (e.key === 'ArrowDown') {
             e.preventDefault();
@@ -1029,7 +1534,7 @@ function renderSalesAssistantMain(mainBlock) {
         } else if (e.key === 'Enter') {
             if (autocompleteIndex >= 0 && autocompleteIndex < filteredClientsCache.length) {
                 clientFilter.value = filteredClientsCache[autocompleteIndex].code;
-                runAnalysis(filteredClientsCache[autocompleteIndex].code);
+                await runAnalysis(filteredClientsCache[autocompleteIndex].code);
                 autocompleteList.style.display = 'none';
             }
         } else if (e.key === 'Escape') {
@@ -1040,12 +1545,42 @@ function renderSalesAssistantMain(mainBlock) {
     clientSearch.addEventListener('blur', () => {
         setTimeout(() => autocompleteList.style.display = 'none', 150);
     });
-    clientFilter.onchange = e => {
+    clientFilter.onchange = async e => {
         const clientCode = e.target.value;
-        runAnalysis(clientCode);
+        await runAnalysis(clientCode);
     };
 
-    loadAndProcessData();
+    // Проверяем, выбрана ли компания перед загрузкой данных
+    if (window.state?.currentCompanyId) {
+        loadAndProcessData();
+    } else {
+        // Показываем сообщение о необходимости выбора компании
+        const loadingContainer = mainBlock.querySelector('#sales-loading-container');
+        if (loadingContainer) {
+            loadingContainer.innerHTML = `
+                <div class="text-center p-8">
+                    <div class="text-yellow-500 mb-4">
+                        <i class="fas fa-exclamation-triangle text-2xl"></i>
+                    </div>
+                    <p class="text-lg font-medium text-gray-200 mb-2">Компанія не вибрана</p>
+                    <p class="text-sm text-gray-400">Будь ласка, спочатку виберіть компанію для роботи з помічником продажу</p>
+                </div>
+            `;
+        }
+        
+        // Добавляем слушатель для перезагрузки данных, когда компания будет выбрана
+        const checkCompanyInterval = setInterval(() => {
+            if (window.state?.currentCompanyId) {
+                clearInterval(checkCompanyInterval);
+                loadAndProcessData();
+            }
+        }, 1000);
+        
+        // Очищаем интервал через 30 секунд, чтобы не тратить ресурсы
+        setTimeout(() => {
+            clearInterval(checkCompanyInterval);
+        }, 30000);
+    }
 }
 
 // === RFM-анализ и расчет сегментов ===

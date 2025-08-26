@@ -82,6 +82,17 @@ function validateAndDebugData() {
  * @param {HTMLElement} container - DOM-элемент для вставки дашборда
  */
 export async function initDepartmentDashboard(container) {
+    // Проверяем права доступа к модулю
+    if (!window.hasPermission || !window.hasPermission('department_dashboard_view')) {
+        container.innerHTML = `
+            <div class="bg-red-900/20 border border-red-500 rounded-xl p-8 text-center">
+                <h2 class="text-2xl font-bold text-white mb-4">Доступ заборонено</h2>
+                <p class="text-gray-300">У вас немає прав для перегляду дашборду по відділах.</p>
+            </div>
+        `;
+        return;
+    }
+
     container.innerHTML = `
         <div class="bg-gray-900 text-gray-200 font-sans p-4 md:p-8">
             <header class="mb-8">
