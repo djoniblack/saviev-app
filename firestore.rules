@@ -54,10 +54,14 @@ service cloud.firestore {
                 'competencies_view_own_assessment': true,
                 'isOwner': true,
                 'smartday_access': true,
+                'department_dashboard_view': true,
                 'focus_view': true,
                 'focus_create': true,
                 'focus_edit': true,
                 'focus_manage': true,
+                'focus_view_all_clients': true,
+                'focus_view_department_clients': true,
+                'focus_view_manager_clients': true,
                 'debts_view_page': true,
                 'debts_view_all_clients': true,
                 'debts_view_manager_clients': true,
@@ -69,6 +73,20 @@ service cloud.firestore {
                 'debts_edit_forecasts': true,
                 'debts_delete_forecasts': true,
                 'debts_export_data': true,
+                // Alerts (Сигналізація) permissions
+                'alerts_view_page': true,
+                'alerts_view_all_clients': true,
+                'alerts_view_manager_clients': true,
+                'alerts_view_department_clients': true,
+                'alerts_add_actions': true,
+                'alerts_edit_actions': true,
+                'alerts_view_actions': true,
+                'alerts_change_status': true,
+                                 'alerts_add_potential_orders': true,
+                 'alerts_view_overdue_agreements': true,
+                 'alerts_export_data': true,
+                 'ai_notifications_view': true,
+                 'ai_notifications_create': true,
                 'planfact_view_page': true,
                 'planfact_create_plans': true,
                 'planfact_edit_own_plans': true,
@@ -77,7 +95,37 @@ service cloud.firestore {
                 'planfact_delete_all_plans': true,
                 'planfact_view_dashboard': true,
                 'planfact_create_targets': true,
-                'planfact_edit_targets': true
+                'planfact_edit_targets': true,
+                'planfact_manage_focus_types': true,
+                'planfact_mass_assignment': true,
+                'planfact_view_analytics': true,
+                'planfact_create_templates': true,
+                'planfact_edit_templates': true,
+                'planfact_delete_templates': true,
+                'planfact_activate_templates': true,
+                // Forecasting permissions
+                'forecasting_view_page': true,
+                'forecasting_create_plans': true,
+                'forecasting_edit_plans': true,
+                'forecasting_delete_plans': true,
+                'forecasting_generate_forecasts': true,
+                'forecasting_view_analytics': true,
+                'forecasting_manage_settings': true,
+                'forecasting_export_reports': true,
+                // Manager Calendar permissions
+                'manager_calendar_view_page': true,
+                'manager_calendar_view_all_tasks': true,
+                'manager_calendar_view_own_tasks': true,
+                'manager_calendar_view_department_tasks': true,
+                'manager_calendar_manage_tasks': true,
+                'manager_calendar_view_reports': true,
+                'manager_calendar_manage_reports': true,
+                'manager_calendar_export_data': true,
+                'manager_calendar_view_workload_norms': true,
+                'manager_calendar_manage_workload_norms': true,
+                'sales_manage': true,
+                'workload_view': true,
+                'workload_manage': true
               }
             : ('permissions' in get(memberPath).data 
                 ? get(memberPath).data.permissions 
@@ -150,7 +198,8 @@ service cloud.firestore {
                        (
                          isCompanyOwner(companyId) ||
                          hasPermission(companyId, request.auth.uid, 'settings_employees_manage') ||
-                         hasPermission(companyId, request.auth.uid, 'timesheet_view')
+                         hasPermission(companyId, request.auth.uid, 'timesheet_view') ||
+                         hasPermission(companyId, request.auth.uid, 'sales_manage')
                        );
         allow create, delete: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'settings_employees_manage');
         allow update: if isUserAuthenticated() &&
@@ -179,7 +228,8 @@ service cloud.firestore {
                        (
                          isCompanyOwner(companyId) ||
                          hasPermission(companyId, request.auth.uid, 'settings_departments_manage') ||
-                         hasPermission(companyId, request.auth.uid, 'timesheet_view')
+                         hasPermission(companyId, request.auth.uid, 'timesheet_view') ||
+                         hasPermission(companyId, request.auth.uid, 'sales_manage')
                        );
         allow write: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'settings_departments_manage');
       }
@@ -212,17 +262,12 @@ service cloud.firestore {
       }
 
       match /kpiSettings/{kpiSettingId} {
-        allow read: if isUserAuthenticated() &&
-                       (hasPermission(companyId, request.auth.uid, 'settings_kpi_constructor_manage') ||
-                        hasPermission(companyId, request.auth.uid, 'kpiIndividual_view_page') ||
-                        hasPermission(companyId, request.auth.uid, 'massSalary_view_page'));
+        allow read: if isUserAuthenticated() && canMemberRead(companyId);
         allow write: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'settings_kpi_constructor_manage');
       }
 
       match /massSalarySnapshots/{snapshotId} {
-        allow read: if isUserAuthenticated() &&
-                       (hasPermission(companyId, request.auth.uid, 'massSalary_view_page') ||
-                        hasPermission(companyId, request.auth.uid, 'reports_view_dynamics'));
+        allow read: if isUserAuthenticated() && canMemberRead(companyId);
         allow write: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'massSalary_save_snapshot');
       }
 
@@ -274,6 +319,36 @@ service cloud.firestore {
         }
       }
 
+      // Focus 2.0 tasks
+      match /focusTasks2/{taskId} {
+        allow read: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_view');
+        allow create: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_create');
+        allow update: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_edit');
+        allow delete: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_manage');
+        // Client notes for focus 2.0 tasks
+        match /notes/{clientCode} {
+          allow read: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_view');
+          allow write: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_edit');
+        }
+              // Client snapshots for focus 2.0 tasks
+      match /clientsSnapshot/{snapshotId} {
+        allow read: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_view');
+        allow write: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_edit');
+      }
+
+      // Notes for focus 2.0 tasks
+      match /notes/{noteId} {
+        allow read: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_view');
+        allow write: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'focus_edit');
+      }
+      }
+
+      // Focus 2.0 nomenclature hierarchy cache
+      match /focusNomenclatureCache/{cacheId} {
+        allow read: if isUserAuthenticated() && canMemberRead(companyId);
+        allow write: if isUserAuthenticated() && canMemberRead(companyId);
+      }
+
       // Smart day tasks
       match /smartDayTasks/{taskId} {
         allow read: if isUserAuthenticated() && hasPermission(companyId, request.auth.uid, 'smartday_access');
@@ -323,6 +398,48 @@ service cloud.firestore {
         );
       }
 
+             // Client alerts and actions (Сигналізація)
+       match /clientAlerts/{clientCode} {
+         allow read: if isUserAuthenticated() && (
+           isCompanyOwner(companyId) ||
+           hasPermission(companyId, request.auth.uid, 'alerts_view_page')
+         );
+         allow create: if isUserAuthenticated() && (
+           isCompanyOwner(companyId) ||
+           hasPermission(companyId, request.auth.uid, 'alerts_add_actions')
+         );
+         allow update: if isUserAuthenticated() && (
+           isCompanyOwner(companyId) ||
+           hasPermission(companyId, request.auth.uid, 'alerts_add_actions') ||
+           hasPermission(companyId, request.auth.uid, 'alerts_edit_actions') ||
+           hasPermission(companyId, request.auth.uid, 'alerts_change_status')
+         );
+         allow delete: if isUserAuthenticated() && (
+           isCompanyOwner(companyId) ||
+           hasPermission(companyId, request.auth.uid, 'alerts_edit_actions')
+         );
+       }
+       
+               // AI Notifications (AI уведомления)
+        match /aiNotifications/{notificationId} {
+          allow read: if isUserAuthenticated() && (
+            isCompanyOwner(companyId) ||
+            (resource.data.managerId == request.auth.uid && hasPermission(companyId, request.auth.uid, 'ai_notifications_view'))
+          );
+          allow create: if isUserAuthenticated() && (
+            isCompanyOwner(companyId) ||
+            hasPermission(companyId, request.auth.uid, 'ai_notifications_create')
+          );
+          allow update: if isUserAuthenticated() && (
+            isCompanyOwner(companyId) ||
+            (resource.data.managerId == request.auth.uid && hasPermission(companyId, request.auth.uid, 'ai_notifications_view'))
+          );
+          allow delete: if isUserAuthenticated() && (
+            isCompanyOwner(companyId) ||
+            hasPermission(companyId, request.auth.uid, 'alerts_edit_actions')
+          );
+        }
+
       // Plan-fact analysis
       match /plans/{planId} {
         allow read: if isUserAuthenticated() && (
@@ -370,6 +487,191 @@ service cloud.firestore {
         allow write: if isUserAuthenticated() && (
           isCompanyOwner(companyId) ||
           hasPermission(companyId, request.auth.uid, 'planfact_view_dashboard')
+        );
+      }
+
+      // Plan templates for plan-fact
+      match /planTemplates/{templateId} {
+        allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_view_page')
+        );
+        allow create: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_create_templates')
+        );
+        allow update: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_edit_templates')
+        );
+        allow delete: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_delete_templates')
+        );
+      }
+
+      // Focus types for plan-fact
+      match /focusTypes/{focusTypeId} {
+        allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_view_page')
+        );
+        allow create, update, delete: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_manage_focus_types')
+        );
+      }
+
+      // Weekly goals (sprints)
+      match /weeklyGoals/{goalId} {
+        allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_view_page') ||
+          (resource.data.managerId == request.auth.uid && hasPermission(companyId, request.auth.uid, 'planfact_view_page'))
+        );
+        allow create, update: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_create_targets') ||
+          (resource.data.managerId == request.auth.uid && hasPermission(companyId, request.auth.uid, 'planfact_create_targets'))
+        );
+        allow delete: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_edit_targets') ||
+          (resource.data.managerId == request.auth.uid && hasPermission(companyId, request.auth.uid, 'planfact_edit_targets'))
+        );
+      }
+
+      // Nomenclature hierarchy for plan-fact
+      match /nomenclatureHierarchy/{hierarchyId} {
+        allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_view_page')
+        );
+        allow create: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_create_templates')
+        );
+        allow update: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_edit_templates')
+        );
+        allow delete: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'planfact_delete_templates')
+        );
+      }
+
+      // Forecasting plans and analytics
+      match /forecastingPlans/{planId} {
+        allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'forecasting_view_page')
+        );
+        allow create: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'forecasting_create_plans')
+        );
+        allow update: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'forecasting_edit_plans')
+        );
+        allow delete: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'forecasting_delete_plans')
+        );
+      }
+
+      match /forecastingAnalytics/{analyticsId} {
+        allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'forecasting_view_analytics')
+        );
+        allow write: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'forecasting_manage_settings')
+        );
+      }
+
+      match /forecastingSettings/{settingId} {
+        allow read, write: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'forecasting_manage_settings')
+        );
+      }
+
+      // Manager Calendar tasks (подколлекция в компании)
+      match /managerCalendarTasks/{taskId} {
+        allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_all_tasks') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_own_tasks') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_department_tasks') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_page')
+        );
+        allow create, update: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_manage_tasks') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_all_tasks') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_page')
+        );
+        allow delete: if isUserAuthenticated() && isCompanyOwner(companyId);
+      }
+
+      // Manager Calendar analytics (подколлекция в компании)
+      match /managerCalendarAnalytics/{analyticsId} {
+        allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_reports') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_all_tasks') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_page')
+        );
+        allow write: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_manage_reports') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_all_tasks') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_page')
+        );
+      }
+
+      // Workload norms (подколлекция в компании)
+      match /workloadNorms/{normId} {
+        allow read: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_workload_norms') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_reports') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_page')
+        );
+        allow write: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_manage_workload_norms') ||
+          hasPermission(companyId, request.auth.uid, 'manager_calendar_view_page')
+        );
+      }
+
+      // Workload data (подколлекция в компании)
+      match /workloadData/{dataId} {
+        allow read: if isUserAuthenticated() && canMemberRead(companyId);
+        allow write: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'workload_manage')
+        );
+      }
+
+      // Department dashboard data (подколлекция в компании)
+      match /departmentDashboard/{dashboardId} {
+        allow read: if isUserAuthenticated() && canMemberRead(companyId);
+        allow write: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'department_dashboard_view')
+        );
+      }
+
+      // Smart day data (подколлекция в компании)
+      match /smartDayData/{dataId} {
+        allow read: if isUserAuthenticated() && canMemberRead(companyId);
+        allow write: if isUserAuthenticated() && (
+          isCompanyOwner(companyId) ||
+          hasPermission(companyId, request.auth.uid, 'smartday_access')
         );
       }
     }
