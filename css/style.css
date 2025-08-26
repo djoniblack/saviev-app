@@ -210,6 +210,10 @@ body {
     overflow-y: auto;
     border: 1px solid #374151; /* Border around the scrollable container */
     border-radius: 0.5rem; /* rounded-lg */
+    flex: 1; /* Растягиваем контейнер таблицы */
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Важно для правильного растягивания */
 }
 .day-cell {
     cursor: pointer;
@@ -542,7 +546,7 @@ select.dark-input {
 
 /* СТИЛІ ДЛЯ МОДУЛЯ КОМПЕТЕНЦІЙ */
 
-/* Кнопки для модуля компетенцій */
+/* Кнопки для модуля компетенцій та помічника продажу */
 .btn {
     padding: 0.5rem 1rem;
     border-radius: 0.375rem;
@@ -550,6 +554,8 @@ select.dark-input {
     transition: background-color 0.2s;
     cursor: pointer;
     border: none;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .btn:disabled {
@@ -582,6 +588,513 @@ select.dark-input {
 
 .btn-danger:hover:not(:disabled) {
     background-color: #9f1239;
+}
+
+/* Адаптивність для кнопок навігації помічника */
+@media (max-width: 1024px) {
+    .btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .btn {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* Адаптивність для модуля помічника продажу */
+#salesAssistantPage {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+#salesAssistantPage .grid {
+    width: 100% !important;
+}
+
+#salesAssistantPage .grid-cols-1.lg\\:grid-cols-2 {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+}
+
+@media (max-width: 1024px) {
+    #salesAssistantPage .grid-cols-1.lg\\:grid-cols-2 {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Сучасні кнопки-вкладки для помічника продажу */
+.modern-tabs-container {
+    width: 100%;
+    overflow-x: auto;
+    padding: 0.25rem 0;
+    margin-top: -0.5rem;
+}
+
+.modern-tabs-wrapper {
+    display: flex;
+    gap: 0.5rem;
+    min-width: max-content;
+    padding: 0.375rem;
+    background: linear-gradient(135deg, rgba(31, 41, 55, 0.8) 0%, rgba(55, 65, 81, 0.6) 100%);
+    border-radius: 1rem;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.modern-tabs-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.1), transparent);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+.modern-tab-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: rgba(55, 65, 81, 0.8);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    border-radius: 0.75rem;
+    color: #d1d5db;
+    font-weight: 500;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    min-width: fit-content;
+    overflow: hidden;
+}
+
+.modern-tab-btn:hover {
+    background: rgba(75, 85, 99, 0.9);
+    border-color: rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px) rotateX(5deg);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    perspective: 1000px;
+}
+
+.modern-tab-btn.active {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    border-color: #6366f1;
+    color: white;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+    transform: translateY(-2px);
+}
+
+.modern-tab-btn.active:hover {
+    background: linear-gradient(135deg, #5855eb 0%, #7c3aed 100%);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+}
+
+.tab-icon {
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    color: #9ca3af;
+}
+
+.modern-tab-btn:hover .tab-icon {
+    transform: scale(1.1);
+    color: #6366f1;
+}
+
+.modern-tab-btn.active .tab-icon {
+    transform: scale(1.15);
+    color: white;
+}
+
+.tab-text {
+    font-weight: 600;
+    letter-spacing: 0.025em;
+}
+
+.tab-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    border-radius: 1px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(-50%);
+}
+
+.modern-tab-btn.active .tab-indicator {
+    width: 80%;
+}
+
+/* Анімація при зміні активної вкладки */
+.modern-tab-btn {
+    animation: tabSlideIn 0.3s ease-out;
+}
+
+@keyframes tabSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Ripple ефект при кліку */
+.modern-tab-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.modern-tab-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.modern-tab-btn:active::before {
+    width: 300px;
+    height: 300px;
+}
+
+/* Пульсація для активної кнопки */
+.modern-tab-btn.active {
+    animation: tabSlideIn 0.3s ease-out, pulseActive 2s infinite;
+}
+
+@keyframes pulseActive {
+    0%, 100% {
+        box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+    }
+}
+
+/* Стилі для фільтрів сигналізації */
+.filters-section {
+    background: rgba(31, 41, 55, 0.5);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.filter-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #d1d5db;
+}
+
+.filter-select {
+    padding: 0.5rem 0.75rem;
+    background: rgba(55, 65, 81, 0.8);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    border-radius: 0.5rem;
+    color: #d1d5db;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.filter-select:hover {
+    border-color: rgba(99, 102, 241, 0.5);
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* Стилі для фільтрів у боковому меню */
+.sidebar-filters {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 1rem;
+}
+
+.sidebar-filters h4 {
+    color: #e5e7eb;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.sidebar-filters .filter-group {
+    margin-bottom: 1rem;
+}
+
+.sidebar-filters .filter-label {
+    display: block;
+    color: #d1d5db;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.sidebar-filters .filter-select,
+.sidebar-filters .filter-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: rgba(31, 41, 55, 0.8);
+    border: 1px solid rgba(75, 85, 99, 0.5);
+    border-radius: 0.375rem;
+    color: #e5e7eb;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+}
+
+.sidebar-filters .filter-select:focus,
+.sidebar-filters .filter-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    background: rgba(31, 41, 55, 0.9);
+}
+
+.sidebar-filters .filter-select:hover,
+.sidebar-filters .filter-input:hover {
+    border-color: rgba(59, 130, 246, 0.5);
+    background: rgba(31, 41, 55, 0.9);
+}
+
+.sidebar-filters .filter-select option {
+    background: #1f2937;
+    color: #e5e7eb;
+    padding: 0.5rem;
+}
+
+/* Стилі для таблиць даних */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    background: rgba(31, 41, 55, 0.3);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    flex: 1; /* Растягиваем таблицу на доступную высоту */
+    min-height: 0; /* Важно для правильного растягивания */
+}
+
+.data-table th,
+.data-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(75, 85, 99, 0.2);
+}
+
+.data-table th {
+    background: rgba(55, 65, 81, 0.8);
+    font-weight: 600;
+    color: #d1d5db;
+    font-size: 0.875rem;
+}
+
+.data-table td {
+    color: #e5e7eb;
+    font-size: 0.875rem;
+}
+
+.data-table tbody tr:hover {
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.text-red-500 {
+    color: #ef4444;
+}
+
+.text-green-500 {
+    color: #10b981;
+}
+
+/* Стилі для метрик */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.metric-card {
+    background: rgba(31, 41, 55, 0.5);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+.metric-title {
+    font-size: 0.875rem;
+    color: #9ca3af;
+    margin-bottom: 0.5rem;
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #d1d5db;
+}
+
+/* Стилі для порівняння */
+.avg-check-comparison {
+    background: rgba(31, 41, 55, 0.3);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.avg-check-comparison h5 {
+    color: #d1d5db;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+.comparison-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.comparison-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.comparison-label {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-bottom: 0.25rem;
+}
+
+.comparison-value {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #d1d5db;
+}
+
+.change-negative {
+    color: #ef4444;
+}
+
+/* Адаптивність для фільтрів */
+@media (max-width: 768px) {
+    .filters-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    .filter-select {
+        padding: 0.375rem 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .data-table {
+        font-size: 0.75rem;
+    }
+    
+    .data-table th,
+    .data-table td {
+        padding: 0.5rem;
+    }
+    
+    .comparison-grid {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+}
+
+/* Адаптивність для сучасних кнопок */
+@media (max-width: 1024px) {
+    .modern-tabs-wrapper {
+        gap: 0.25rem;
+        padding: 0.25rem;
+    }
+    
+    .modern-tab-btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8rem;
+    }
+    
+    .tab-icon {
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .modern-tabs-wrapper {
+        gap: 0.125rem;
+        padding: 0.125rem;
+    }
+    
+    .modern-tab-btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        gap: 0.25rem;
+    }
+    
+    .tab-icon {
+        font-size: 0.75rem;
+    }
+    
+    .tab-text {
+        font-size: 0.7rem;
+    }
+}
+
+/* Покращення адаптивності для кнопок в модулі помічника */
+#salesAssistantPage .flex.flex-wrap {
+    gap: 0.5rem !important;
+}
+
+@media (max-width: 768px) {
+    #salesAssistantPage .flex.flex-wrap {
+        gap: 0.25rem !important;
+    }
 }
 
 /* Анімації для модуля компетенцій */
@@ -896,4 +1409,1054 @@ tr:hover {
   content: '\2605';
   color: #d1d5db;
   margin-right: 0.5em;
+}
+
+/* === Signalization Module Styles === */
+.signalization-container {
+  display: flex;
+  height: 100vh;
+  background-color: var(--bg-main);
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Sidebar Menu */
+.sidebar-menu {
+  width: 280px;
+  min-width: 280px;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-right: 1px solid #475569;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  transition: width 0.3s ease; /* Плавная анимация изменения ширины */
+}
+
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #475569;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-header h3 {
+  color: #f8fafc;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 1rem 0;
+}
+
+.nav-btn {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  text-align: left;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-left: 3px solid transparent;
+}
+
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  border-left-color: #6366f1;
+}
+
+.nav-btn.active {
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+  border-left-color: #6366f1;
+}
+
+.nav-btn i {
+  font-size: 1.1rem;
+  width: 20px;
+  text-align: center;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-main);
+  min-height: 0; /* Важно для правильного растягивания */
+}
+
+.content-header {
+  padding: 1rem 1.5rem; /* Уменьшаем отступы */
+  border-bottom: 1px solid #334155;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.content-header h2 {
+  color: var(--text-main);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.filters-container {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.content-body {
+  flex: 1;
+  padding: 1rem; /* Уменьшаем отступы */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Важно для правильного растягивания */
+}
+
+/* Dashboard Grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* Стили для правильного растягивания контента */
+.signalization-container {
+  display: flex;
+  height: 100vh;
+  background-color: var(--bg-main);
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.dashboard-card {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border: 1px solid #475569;
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  border-color: #6366f1;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.card-header h3 {
+  color: #f1f5f9;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.card-header i {
+  color: #6366f1;
+  font-size: 1.5rem;
+}
+
+.card-content {
+  text-align: center;
+}
+
+.metric-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #6366f1;
+  margin-bottom: 0.5rem;
+}
+
+.metric-label {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Section Headers */
+.section-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #334155;
+}
+
+/* Контейнеры для правильного растягивания контента */
+.content-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.table-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.section-header h3 {
+  color: var(--text-main);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.section-header p {
+  color: #94a3b8;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+/* Analytics Tabs */
+.analytics-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #334155;
+}
+
+.analytics-tab {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.analytics-tab:hover {
+  color: #f1f5f9;
+}
+
+.analytics-tab.active {
+  color: #6366f1;
+  border-bottom-color: #6366f1;
+}
+
+/* Forecast Tabs */
+.forecast-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #334155;
+}
+
+.forecast-tab {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.forecast-tab:hover {
+  color: #f1f5f9;
+}
+
+.forecast-tab.active {
+  color: #6366f1;
+  border-bottom-color: #6366f1;
+}
+
+/* Revenue Drop Tabs */
+.revenue-drop-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #334155;
+}
+
+.revenue-drop-tab {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.revenue-drop-tab:hover {
+  color: #f1f5f9;
+}
+
+.revenue-drop-tab.active {
+  color: #6366f1;
+  border-bottom-color: #6366f1;
+}
+
+/* Metrics Grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.metric-card {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.metric-title {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.metric-value {
+  color: #6366f1;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* Comparison Grid */
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.comparison-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+}
+
+.comparison-label {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.comparison-value {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.change-negative {
+  color: #ef4444;
+}
+
+.change-positive {
+  color: #22c55e;
+}
+
+/* Section Headers */
+.forecast-section,
+.revenue-drop-section {
+  margin-bottom: 2rem;
+}
+
+.forecast-section h4,
+.revenue-drop-section h4 {
+  color: var(--text-main);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+}
+
+.avg-check-comparison h5 {
+  color: var(--text-main);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem 0;
+}
+
+/* Placeholder Content */
+.placeholder-content {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #9ca3af;
+}
+
+.placeholder-content i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.placeholder-content h4 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #d1d5db;
+}
+
+.placeholder-content p {
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+
+/* Loading States */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #334155;
+  border-top: 3px solid #6366f1;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Error States */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #ef4444;
+  text-align: center;
+}
+
+.error-container i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.error-container h3 {
+  color: var(--text-main);
+  margin: 0 0 0.5rem 0;
+}
+
+.error-container p {
+  color: #94a3b8;
+  margin: 0 0 1rem 0;
+}
+
+.error-container button {
+  background: #6366f1;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.3s ease;
+}
+
+.error-container button:hover {
+  background: #4f46e5;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .signalization-container {
+    height: auto;
+    min-height: 100vh;
+  }
+  
+  .sidebar-menu {
+    width: 100%;
+    min-width: auto;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid #475569;
+  }
+  
+  .sidebar-nav {
+    display: flex;
+    overflow-x: auto;
+    padding: 1rem;
+    gap: 0.5rem;
+  }
+  
+  .nav-btn {
+    white-space: nowrap;
+    padding: 0.75rem 1rem;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    min-width: auto;
+    flex-shrink: 0;
+  }
+  
+  .nav-btn.active {
+    border-left-color: transparent;
+    border-bottom-color: #6366f1;
+  }
+  
+  .main-content {
+    width: 100%;
+  }
+  
+  .dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+  
+  .content-header {
+    padding: 1rem;
+  }
+  
+  .content-body {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .signalization-container {
+    flex-direction: column;
+  }
+  
+  .sidebar-menu {
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid #475569;
+  }
+  
+  .sidebar-nav {
+    display: flex;
+    overflow-x: auto;
+    padding: 1rem;
+  }
+  
+  .nav-btn {
+    white-space: nowrap;
+    padding: 0.75rem 1rem;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+  }
+  
+  .nav-btn.active {
+    border-left-color: transparent;
+    border-bottom-color: #6366f1;
+  }
+  
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .content-header {
+    padding: 1rem;
+  }
+  
+  .content-body {
+    padding: 1rem;
+  }
+}
+
+/* Стилі для вкладок прогнозу */
+.forecast-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.5rem;
+}
+
+.forecast-tab-btn {
+  padding: 0.75rem 1.5rem;
+  background: rgba(31, 41, 55, 0.6);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  border-radius: 0.5rem;
+  color: #d1d5db;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.forecast-tab-btn:hover {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #e5e7eb;
+}
+
+.forecast-tab-btn.active {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border-color: #3b82f6;
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.forecast-tab-content {
+  display: none;
+}
+
+.forecast-tab-content.active {
+  display: block;
+}
+
+/* Стилі для вкладок аналітики */
+.analytics-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.5rem;
+}
+
+.analytics-tab-btn {
+  padding: 0.75rem 1.5rem;
+  background: rgba(31, 41, 55, 0.6);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  border-radius: 0.5rem;
+  color: #d1d5db;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.analytics-tab-btn:hover {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #e5e7eb;
+}
+
+.analytics-tab-btn.active {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border-color: #3b82f6;
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.analytics-tab-content {
+  display: none;
+}
+
+.analytics-tab-content.active {
+  display: block;
+}
+
+/* Стилі для placeholder контенту */
+.placeholder-content {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #9ca3af;
+}
+
+.placeholder-content i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.placeholder-content h4 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #d1d5db;
+}
+
+.placeholder-content p {
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+
+/* Адаптивність для вкладок */
+@media (max-width: 768px) {
+  .forecast-tabs,
+  .analytics-tabs {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .forecast-tab-btn,
+  .analytics-tab-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+  }
+}
+
+/* Analytics Filters Styles */
+.analytics-filters {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.analytics-filters .filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+}
+
+.analytics-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
+  flex: 1;
+}
+
+.analytics-filters .filter-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #e2e8f0;
+  margin-bottom: 2px;
+}
+
+.analytics-filters .filter-select,
+.analytics-filters .filter-input {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f1f5f9;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.analytics-filters .filter-select:hover,
+.analytics-filters .filter-input:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.analytics-filters .filter-select:focus,
+.analytics-filters .filter-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.analytics-filters .filter-select option {
+  background: #1e293b;
+  color: #f1f5f9;
+  padding: 8px;
+}
+
+.analytics-filters .filter-input::placeholder {
+  color: #94a3b8;
+}
+
+/* Responsive design for analytics filters */
+@media (max-width: 1024px) {
+  .analytics-filters .filter-row {
+    gap: 12px;
+  }
+  
+  .analytics-filters .filter-group {
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 768px) {
+  .analytics-filters {
+    padding: 16px;
+  }
+  
+  .analytics-filters .filter-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .analytics-filters .filter-group {
+    min-width: 100%;
+  }
+  
+  .analytics-filters .filter-select,
+  .analytics-filters .filter-input {
+    padding: 12px 16px;
+    font-size: 1rem;
+  }
+}
+
+/* Стилі для згорнутого бокового меню */
+.sidebar-menu {
+  transition: transform 0.3s ease;
+  position: relative;
+  transform: translateX(0);
+}
+
+.sidebar-menu.collapsed {
+  width: 60px; /* Ширина в свернутом состоянии */
+  min-width: 60px;
+}
+
+
+
+.sidebar-menu.collapsed .sidebar-header h3,
+.sidebar-menu.collapsed .nav-text,
+.sidebar-menu.collapsed .sidebar-filters,
+.sidebar-menu.collapsed .filter-group label {
+  display: none;
+}
+
+.sidebar-menu.collapsed .nav-btn {
+  justify-content: center;
+  padding: 12px 8px;
+  min-width: 44px;
+}
+
+.sidebar-menu.collapsed .nav-btn i {
+  margin-right: 0;
+  font-size: 1.1rem;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: scale(1.05);
+}
+
+.sidebar-menu.collapsed .sidebar-toggle {
+  right: 8px;
+  top: 8px;
+}
+
+/* Стили для вкладок передач клиентов */
+.transferred-clients-tabs {
+  display: flex;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 1rem;
+}
+
+.transferred-clients-tab {
+  padding: 0.75rem 1.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  color: #6b7280;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.transferred-clients-tab:hover {
+  color: #374151;
+  background-color: #f9fafb;
+}
+
+.transferred-clients-tab.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.transferred-clients-tab-content {
+  min-height: 400px;
+}
+
+/* === Focus 2.0 Task Cards Animations === */
+.focus-task-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: center;
+    will-change: transform, box-shadow, border-color;
+}
+
+.focus-task-card:hover {
+    transform: scale(1.02) translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.focus-task-card:active {
+    transform: scale(0.98);
+}
+
+/* Task group animations */
+.focus-task-group {
+    animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Task card entrance animation */
+.focus-task-card {
+    animation: cardEntrance 0.6s ease-out;
+}
+
+@keyframes cardEntrance {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Stagger animation for cards */
+.focus-task-card:nth-child(1) { animation-delay: 0.1s; }
+.focus-task-card:nth-child(2) { animation-delay: 0.2s; }
+.focus-task-card:nth-child(3) { animation-delay: 0.3s; }
+.focus-task-card:nth-child(4) { animation-delay: 0.4s; }
+.focus-task-card:nth-child(5) { animation-delay: 0.5s; }
+.focus-task-card:nth-child(6) { animation-delay: 0.6s; }
+
+/* Progress bar animation */
+.focus-progress-bar {
+    transition: width 0.8s ease-out;
+    background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+}
+
+/* Status badge animations */
+.focus-status-badge {
+    transition: all 0.2s ease-in-out;
+}
+
+.focus-status-badge:hover {
+    transform: scale(1.1);
+}
+
+/* Button hover effects */
+.focus-action-btn {
+    transition: all 0.2s ease-in-out;
+    position: relative;
+    overflow: hidden;
+}
+
+.focus-action-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s;
+}
+
+.focus-action-btn:hover::before {
+    left: 100%;
+}
+
+/* Group header animations */
+.focus-group-header {
+    transition: all 0.3s ease-in-out;
+}
+
+.focus-group-header:hover {
+    transform: translateX(5px);
+}
+
+/* Filter animations */
+.focus-filter-input {
+    transition: all 0.2s ease-in-out;
+}
+
+.focus-filter-input:focus {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Loading states */
+.focus-loading {
+    animation: focusPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes focusPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Empty state animations */
+.focus-empty-state {
+    animation: focusFadeIn 0.8s ease-out;
+}
+
+@keyframes focusFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive animations */
+@media (max-width: 768px) {
+    .focus-task-card:hover {
+        transform: scale(1.01) translateY(-1px);
+    }
+    
+    .focus-task-card {
+        animation-duration: 0.4s;
+    }
+}
+
+/* Dark mode specific animations */
+@media (prefers-color-scheme: dark) {
+    .focus-task-card:hover {
+        box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+    }
 }
